@@ -1,0 +1,23 @@
+# Portfolio Optimization — LSTM & ML/DL
+# pip install -r requirements.txt
+
+# ── Core ML / DL ──────────────────────────────────────
+tensorflow>=2.10.0
+numpy>=1.23.0
+pandas>=1.5.0
+scikit-learn>=1.1.0
+
+# ── Portfolio optimisation ─────────────────────────────
+PyPortfolioOpt>=1.5.5
+cvxpy>=1.3.0
+
+# ── Live market data (PRIMARY data source) ────────────
+yfinance>=0.2.40
+
+# ── Dashboard & visualisation ─────────────────────────
+streamlit>=1.28.0
+plotly>=5.15.0
+
+# ── Utilities ─────────────────────────────────────────
+scipy>=1.10.0
+requests>=2.31.0
