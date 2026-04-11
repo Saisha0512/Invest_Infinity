@@ -1,22 +1,23 @@
 """
-app.py — Portfolio Optimization Dashboard
-==========================================
-Run:  streamlit run app.py
+app.py — Invest Infinity Dashboard
+====================================
+Run: streamlit run app.py
 
-Pages
-─────
-🏠 Home        — stock picker, investment input, quick KPIs
-📊 Forecast    — per-stock LSTM price charts + accuracy metrics
-💼 Portfolio   — allocation donut, shares-to-buy, correlation heatmap
-📈 Performance — efficient frontier, historical backtest, strategy table
-ℹ️  About       — methodology, hyperparameter table, authors
+Architecture:
+  - Step 1  : Fetch live data (yfinance)
+  - Step 2  : Train LSTM + GRU for each selected company
+  - Step 3  : Evaluate on strict time-based test split
+  - Step 4  : User selects best model per company
+  - Step 5  : Portfolio optimisation + future forecast
 
-Languages: English · हिन्दी · Français  (extend via TRANSLATIONS dict)
+Bug fixes vs previous version:
+  - BUG FIX: add_vline crash — convert Timestamp to ISO string before passing
+  - BUG FIX: Strict time-based split (no random shuffle)
+  - BUG FIX: Scaler fitted only on training data
+  - BUG FIX: Test metrics computed only on out-of-sample test period
 """
 
-import os
-import sys
-import warnings
+import os, sys, warnings, pickle
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
@@ -26,21 +27,19 @@ import streamlit as st
 warnings.filterwarnings("ignore")
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
-# ── path setup ────────────────────────────────────────────────
 BASE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, BASE)
 
 from utils.data_fetcher import (
-    fetch_stock_data, STOCK_UNIVERSE, SORTED_TICKERS,
-    get_trending_tickers, get_sector_map
+    fetch_stock_data, time_split, STOCK_UNIVERSE, SORTED_TICKERS
 )
-from model.lstm_model import train, forecast, TIMESTEPS, FORECAST_DAYS
+from model.trainer import train_model, evaluate_model, forecast_future
 from model.portfolio_optimizer import (
     build_price_matrix, optimise, backtest
 )
 
-MODEL_DIR   = os.path.join(BASE, "models")
-FALLBACK_CSV = os.path.join(BASE, "data", "stocks_data_1.csv")
+MODEL_DIR    = os.path.join(BASE, "models")
+FALLBACK_CSV = os.path.join(BASE, "data", "stocks_data.csv")
 os.makedirs(MODEL_DIR, exist_ok=True)
 
 # ──────────────────────────────────────────────────────────────
@@ -48,238 +47,261 @@ os.makedirs(MODEL_DIR, exist_ok=True)
 # ──────────────────────────────────────────────────────────────
 TRANSLATIONS = {
     "English": {
-        "app_title":        "Portfolio Optimizer — LSTM & ML/DL",
-        "tagline":          "AI-powered stock forecasting & portfolio construction",
-        "lang_label":       "🌐 Language",
-        "sidebar_stocks":   "Select stocks (5–10 recommended)",
-        "sidebar_period":   "Historical data period",
-        "sidebar_invest":   "Total investment amount ($)",
-        "sidebar_rfr":      "Risk-free rate (%)",
-        "btn_fetch":        "🔄 Fetch Data",
-        "btn_train":        "🧠 Train Models",
-        "btn_run":          "🚀 Run Analysis",
-        "tab_home":         "🏠 Home",
-        "tab_forecast":     "📊 Forecast",
-        "tab_portfolio":    "💼 Portfolio",
-        "tab_perf":         "📈 Performance",
-        "tab_about":        "ℹ️ About",
-        "strategy":         "Optimisation strategy",
-        "max_sharpe":       "Max Sharpe",
-        "min_vol":          "Min Volatility",
-        "equal_w":          "Equal Weight",
-        "sharpe":           "Sharpe Ratio",
-        "ann_ret":          "Annual Return",
-        "ann_vol":          "Annual Volatility",
-        "var95":            "VaR (95%)",
-        "cvar95":           "CVaR (95%)",
-        "max_dd":           "Max Drawdown",
-        "allocation":       "Optimal Allocation",
-        "shares_to_buy":    "Shares to buy",
-        "leftover":         "Leftover cash",
-        "corr_title":       "Return Correlation Matrix",
-        "frontier_title":   "Efficient Frontier",
-        "backtest_title":   "Historical Backtest (normalised to 100)",
-        "compare_title":    "Strategy Comparison",
-        "forecast_title":   "30-Day Price Forecast",
-        "login_header":     "👤 Account",
-        "login_user":       "Username",
-        "login_pwd":        "Password",
-        "login_btn":        "Login",
-        "save_btn":         "💾 Save Analysis",
-        "saved_header":     "📁 Saved Analyses",
-        "no_data_msg":      "Fetch data first using the sidebar.",
-        "no_model_msg":     "Train models first.",
-        "no_result_msg":    "Run Analysis first.",
-        "trending_badge":   "🔥 Trending",
-        "sector_label":     "Sector",
-        "rmse_label":       "RMSE",
-        "mape_label":       "MAPE",
-        "last_price":       "Last price",
-        "day30_forecast":   "Day-30 forecast",
-        "exp_change":       "Expected change",
-        "data_preview":     "Data preview",
-        "fetch_success":    "Data fetched successfully!",
-        "train_success":    "All models trained!",
-        "run_success":      "Analysis complete!",
-        "period_options":   ["1y", "2y", "3y", "5y", "10y"],
+        "app_title":     "Invest Infinity",
+        "tagline":       "AI-powered portfolio optimization using LSTM & GRU",
+        "fetch":         "Fetch Data",
+        "train":         "Train Models",
+        "run":           "Run Analysis",
+        "tab_home":      "Home",
+        "tab_model_sel": "Model Selection",
+        "tab_forecast":  "Forecast",
+        "tab_portfolio": "Portfolio",
+        "tab_perf":      "Performance",
+        "tab_about":     "About",
+        "period_opts":   ["1y","2y","3y","5y","10y"],
+        "login":         "Login / Sign Up",
     },
     "हिन्दी": {
-        "app_title":        "पोर्टफोलियो ऑप्टिमाइज़र — LSTM & ML/DL",
-        "tagline":          "AI-आधारित स्टॉक पूर्वानुमान और पोर्टफोलियो निर्माण",
-        "lang_label":       "🌐 भाषा",
-        "sidebar_stocks":   "स्टॉक चुनें (5–10 अनुशंसित)",
-        "sidebar_period":   "ऐतिहासिक डेटा अवधि",
-        "sidebar_invest":   "कुल निवेश राशि ($)",
-        "sidebar_rfr":      "जोखिम-मुक्त दर (%)",
-        "btn_fetch":        "🔄 डेटा प्राप्त करें",
-        "btn_train":        "🧠 मॉडल प्रशिक्षित करें",
-        "btn_run":          "🚀 विश्लेषण चलाएं",
-        "tab_home":         "🏠 होम",
-        "tab_forecast":     "📊 पूर्वानुमान",
-        "tab_portfolio":    "💼 पोर्टफोलियो",
-        "tab_perf":         "📈 प्रदर्शन",
-        "tab_about":        "ℹ️ जानकारी",
-        "strategy":         "अनुकूलन रणनीति",
-        "max_sharpe":       "अधिकतम शार्प",
-        "min_vol":          "न्यूनतम अस्थिरता",
-        "equal_w":          "समान भार",
-        "sharpe":           "शार्प अनुपात",
-        "ann_ret":          "वार्षिक रिटर्न",
-        "ann_vol":          "वार्षिक अस्थिरता",
-        "var95":            "VaR (95%)",
-        "cvar95":           "CVaR (95%)",
-        "max_dd":           "अधिकतम गिरावट",
-        "allocation":       "इष्टतम आवंटन",
-        "shares_to_buy":    "खरीदने के शेयर",
-        "leftover":         "शेष नकद",
-        "corr_title":       "सहसंबंध मैट्रिक्स",
-        "frontier_title":   "कुशल सीमा",
-        "backtest_title":   "ऐतिहासिक बैकटेस्ट (100 से सामान्यीकृत)",
-        "compare_title":    "रणनीति तुलना",
-        "forecast_title":   "30-दिन का मूल्य पूर्वानुमान",
-        "login_header":     "👤 खाता",
-        "login_user":       "उपयोगकर्ता नाम",
-        "login_pwd":        "पासवर्ड",
-        "login_btn":        "लॉगिन",
-        "save_btn":         "💾 विश्लेषण सहेजें",
-        "saved_header":     "📁 सहेजे गए विश्लेषण",
-        "no_data_msg":      "पहले साइडबार से डेटा प्राप्त करें।",
-        "no_model_msg":     "पहले मॉडल प्रशिक्षित करें।",
-        "no_result_msg":    "पहले विश्लेषण चलाएं।",
-        "trending_badge":   "🔥 ट्रेंडिंग",
-        "sector_label":     "क्षेत्र",
-        "rmse_label":       "RMSE",
-        "mape_label":       "MAPE",
-        "last_price":       "अंतिम मूल्य",
-        "day30_forecast":   "30वें दिन का पूर्वानुमान",
-        "exp_change":       "अपेक्षित परिवर्तन",
-        "data_preview":     "डेटा पूर्वावलोकन",
-        "fetch_success":    "डेटा सफलतापूर्वक प्राप्त!",
-        "train_success":    "सभी मॉडल प्रशिक्षित!",
-        "run_success":      "विश्लेषण पूर्ण!",
-        "period_options":   ["1y", "2y", "3y", "5y", "10y"],
+        "app_title":     "Invest Infinity",
+        "tagline":       "LSTM और GRU द्वारा AI-संचालित पोर्टफोलियो अनुकूलन",
+        "fetch":         "डेटा प्राप्त करें",
+        "train":         "मॉडल प्रशिक्षित करें",
+        "run":           "विश्लेषण चलाएं",
+        "tab_home":      "होम",
+        "tab_model_sel": "मॉडल चयन",
+        "tab_forecast":  "पूर्वानुमान",
+        "tab_portfolio": "पोर्टफोलियो",
+        "tab_perf":      "प्रदर्शन",
+        "tab_about":     "जानकारी",
+        "period_opts":   ["1y","2y","3y","5y","10y"],
+        "login":         "लॉगिन / साइन अप",
     },
     "Français": {
-        "app_title":        "Optimiseur de Portefeuille — LSTM & ML/DL",
-        "tagline":          "Prévision boursière et construction de portefeuille par IA",
-        "lang_label":       "🌐 Langue",
-        "sidebar_stocks":   "Choisir des actions (5–10 recommandées)",
-        "sidebar_period":   "Période de données historiques",
-        "sidebar_invest":   "Montant total d'investissement ($)",
-        "sidebar_rfr":      "Taux sans risque (%)",
-        "btn_fetch":        "🔄 Récupérer les données",
-        "btn_train":        "🧠 Entraîner les modèles",
-        "btn_run":          "🚀 Lancer l'analyse",
-        "tab_home":         "🏠 Accueil",
-        "tab_forecast":     "📊 Prévision",
-        "tab_portfolio":    "💼 Portefeuille",
-        "tab_perf":         "📈 Performance",
-        "tab_about":        "ℹ️ À propos",
-        "strategy":         "Stratégie d'optimisation",
-        "max_sharpe":       "Sharpe max",
-        "min_vol":          "Volatilité min",
-        "equal_w":          "Équipondéré",
-        "sharpe":           "Ratio de Sharpe",
-        "ann_ret":          "Rendement annuel",
-        "ann_vol":          "Volatilité annuelle",
-        "var95":            "VaR (95%)",
-        "cvar95":           "CVaR (95%)",
-        "max_dd":           "Drawdown max",
-        "allocation":       "Allocation optimale",
-        "shares_to_buy":    "Actions à acheter",
-        "leftover":         "Liquidités restantes",
-        "corr_title":       "Matrice de corrélation",
-        "frontier_title":   "Frontière efficiente",
-        "backtest_title":   "Backtest historique (normalisé à 100)",
-        "compare_title":    "Comparaison des stratégies",
-        "forecast_title":   "Prévision des prix sur 30 jours",
-        "login_header":     "👤 Compte",
-        "login_user":       "Nom d'utilisateur",
-        "login_pwd":        "Mot de passe",
-        "login_btn":        "Connexion",
-        "save_btn":         "💾 Sauvegarder l'analyse",
-        "saved_header":     "📁 Analyses sauvegardées",
-        "no_data_msg":      "Récupérez d'abord les données via la barre latérale.",
-        "no_model_msg":     "Entraînez d'abord les modèles.",
-        "no_result_msg":    "Lancez d'abord l'analyse.",
-        "trending_badge":   "🔥 Tendance",
-        "sector_label":     "Secteur",
-        "rmse_label":       "RMSE",
-        "mape_label":       "MAPE",
-        "last_price":       "Dernier prix",
-        "day30_forecast":   "Prévision J+30",
-        "exp_change":       "Variation attendue",
-        "data_preview":     "Aperçu des données",
-        "fetch_success":    "Données récupérées avec succès !",
-        "train_success":    "Tous les modèles entraînés !",
-        "run_success":      "Analyse terminée !",
-        "period_options":   ["1y", "2y", "3y", "5y", "10y"],
-    }
+        "app_title":     "Invest Infinity",
+        "tagline":       "Optimisation de portefeuille par IA (LSTM & GRU)",
+        "fetch":         "Récupérer les données",
+        "train":         "Entraîner les modèles",
+        "run":           "Lancer l'analyse",
+        "tab_home":      "Accueil",
+        "tab_model_sel": "Sélection du modèle",
+        "tab_forecast":  "Prévision",
+        "tab_portfolio": "Portefeuille",
+        "tab_perf":      "Performance",
+        "tab_about":     "À propos",
+        "period_opts":   ["1y","2y","3y","5y","10y"],
+        "login":         "Connexion / Inscription",
+    },
 }
 
+def T(key):
+    return TRANSLATIONS.get(
+        st.session_state.get("language","English"),
+        TRANSLATIONS["English"]
+    ).get(key, key)
+
 # ──────────────────────────────────────────────────────────────
-# Page config & CSS
+# Page config
 # ──────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="Portfolio Optimizer",
-    page_icon="📈",
+    page_title="Invest Infinity",
+    page_icon="assets/logo.png" if os.path.exists("assets/logo.png") else "📈",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
+# ── White background professional CSS ─────────────────────────
 st.markdown("""
 <style>
-/* Metric cards */
-.kpi-card {
-    background: #0d1b2a;
-    border: 1px solid #1e3a5f;
-    border-radius: 12px;
-    padding: 14px 18px;
-    text-align: center;
-    margin-bottom: 8px;
+/* ── Global white background ── */
+html, body, [data-testid="stApp"] {
+    background-color: #ffffff !important;
+    color: #111111 !important;
 }
-.kpi-card .kpi-label { font-size: 11px; color: #7ec8e3; text-transform: uppercase;
-                        letter-spacing: .06em; margin-bottom: 4px; }
-.kpi-card .kpi-value { font-size: 24px; font-weight: 700; color: #ffffff; }
-.kpi-card .kpi-sub   { font-size: 11px; color: #aaaaaa; margin-top: 2px; }
+[data-testid="stHeader"] { background-color: #ffffff !important; }
+[data-testid="stSidebar"] { display: none; }
 
-/* Positive / negative colouring */
-.pos { color: #4caf93 !important; }
-.neg { color: #e57373 !important; }
+/* ── Top nav bar ── */
+.nav-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #111111;
+    padding: 0 32px;
+    height: 56px;
+    position: sticky;
+    top: 0;
+    z-index: 999;
+    border-radius: 0 0 12px 12px;
+}
+.nav-logo {
+    font-size: 20px;
+    font-weight: 700;
+    color: #ffffff;
+    letter-spacing: .03em;
+}
+.nav-links {
+    display: flex;
+    gap: 6px;
+}
+.nav-btn {
+    background: transparent;
+    color: #cccccc;
+    border: none;
+    padding: 6px 18px;
+    font-size: 14px;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: background .15s;
+}
+.nav-btn:hover, .nav-btn.active {
+    background: #333333;
+    color: #ffffff;
+}
+.nav-login {
+    background: #ffffff;
+    color: #111111;
+    border: none;
+    padding: 6px 18px;
+    font-size: 13px;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+}
 
-/* Stock badge pill */
+/* ── Streamlit tab override ── */
+[data-testid="stTabs"] [role="tablist"] {
+    background: #111111 !important;
+    border-radius: 10px !important;
+    padding: 4px 8px !important;
+    gap: 4px !important;
+    justify-content: space-evenly !important;
+}
+[data-testid="stTabs"] button[role="tab"] {
+    color: #aaaaaa !important;
+    background: transparent !important;
+    border: none !important;
+    border-radius: 6px !important;
+    font-size: 14px !important;
+    padding: 8px 20px !important;
+    font-weight: 500 !important;
+    flex: 1 !important;
+    min-width: 0 !important;
+}
+[data-testid="stTabs"] button[role="tab"][aria-selected="true"] {
+    background: #333333 !important;
+    color: #ffffff !important;
+}
+[data-testid="stTabs"] [data-testid="stTabContent"] {
+    padding-top: 24px !important;
+}
+
+/* ── Black action buttons ── */
+div.stButton > button {
+    background-color: #111111 !important;
+    color: #ffffff !important;
+    border: none !important;
+    border-radius: 8px !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    padding: 10px 24px !important;
+    width: 100% !important;
+    letter-spacing: .02em !important;
+    transition: background .15s !important;
+}
+div.stButton > button:hover {
+    background-color: #333333 !important;
+}
+div.stButton > button[kind="primary"] {
+    background-color: #111111 !important;
+}
+
+/* ── Metric cards ── */
+.metric-card {
+    background: #f5f5f5;
+    border: 1px solid #e0e0e0;
+    border-radius: 10px;
+    padding: 16px 20px;
+    text-align: center;
+}
+.metric-card .mc-label { font-size: 11px; color: #666; text-transform: uppercase;
+                          letter-spacing: .06em; margin-bottom: 4px; }
+.metric-card .mc-value { font-size: 22px; font-weight: 700; color: #111; }
+.metric-card.good  .mc-value { color: #1a7a4a; }
+.metric-card.warn  .mc-value { color: #b34000; }
+.metric-card.bad   .mc-value { color: #c0392b; }
+
+/* ── Recommended badge ── */
+.rec-badge {
+    display: inline-block;
+    background: #1a7a4a;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .06em;
+    border-radius: 4px;
+    padding: 2px 8px;
+    margin-left: 8px;
+    vertical-align: middle;
+    text-transform: uppercase;
+}
+.better-badge {
+    display: inline-block;
+    background: #b34000;
+    color: #fff;
+    font-size: 11px;
+    border-radius: 4px;
+    padding: 2px 8px;
+    margin-left: 8px;
+    vertical-align: middle;
+}
+
+/* ── Section header ── */
+.sec-h {
+    font-size: 16px;
+    font-weight: 700;
+    color: #111;
+    border-bottom: 2px solid #111;
+    padding-bottom: 6px;
+    margin: 24px 0 14px 0;
+}
+
+/* ── Right panel (home) ── */
+.right-panel {
+    background: #f9f9f9;
+    border: 1px solid #e0e0e0;
+    border-radius: 12px;
+    padding: 24px;
+}
+
+/* ── Stock badge ── */
 .sbadge {
     display: inline-block;
-    background: #1e3a5f;
-    color: #7ec8e3;
+    background: #111;
+    color: #fff;
     border-radius: 20px;
-    padding: 2px 10px;
+    padding: 3px 12px;
     font-size: 12px;
     margin: 2px 4px 2px 0;
 }
-.tbadge {
-    background: #b34000;
-    color: #fff;
-    font-size: 10px;
-    border-radius: 4px;
-    padding: 1px 5px;
-    margin-left: 4px;
-    vertical-align: middle;
-}
-/* Section divider */
-.sec-header {
-    font-size: 15px;
-    font-weight: 600;
-    color: #7ec8e3;
-    border-bottom: 1px solid #1e3a5f;
-    padding-bottom: 4px;
-    margin: 16px 0 10px 0;
+
+/* ── Section divider ── */
+hr { border: none; border-top: 1px solid #e5e5e5; margin: 20px 0; }
+
+/* ── Remove Streamlit watermark ── */
+#MainMenu, footer { visibility: hidden; }
+
+/* ── Input / select styling ── */
+[data-testid="stSelectbox"] > div > div,
+[data-testid="stMultiSelect"] > div > div {
+    background: #ffffff !important;
+    border: 1px solid #cccccc !important;
+    border-radius: 6px !important;
 }
 </style>
 """, unsafe_allow_html=True)
 
 # ──────────────────────────────────────────────────────────────
-# Session state defaults
+# Session state
 # ──────────────────────────────────────────────────────────────
 _defaults = {
     "language":         "English",
@@ -288,607 +310,777 @@ _defaults = {
     "investment":       100_000.0,
     "risk_free_rate":   0.05,
     "stock_data":       None,
-    "forecast_results": {},
+    "data_source":      None,
+    "train_cut":        None,
+    "test_start":       None,
+    "train_data":       {},     # {company: train_df}
+    "test_data":        {},     # {company: test_df}
+    "train_results":    {},     # {company: {LSTM: {...}, GRU: {...}}}
+    "eval_results":     {},     # {company: {LSTM: {...}, GRU: {...}}}
+    "selected_models":  {},     # {company: "LSTM" or "GRU"}
+    "forecast_results": {},     # {company: forecast dict}
     "opt_results":      None,
     "price_matrix":     None,
     "logged_in":        False,
     "username":         "",
     "saved_analyses":   [],
+    "active_tab":       0,
+    "forecast_horizon": 30,
 }
 for k, v in _defaults.items():
     if k not in st.session_state:
         st.session_state[k] = v
 
+# ──────────────────────────────────────────────────────────────
+# Helpers
+# ──────────────────────────────────────────────────────────────
+def ts_to_str(ts) -> str:
+    """Convert any Timestamp/date to ISO string — fixes add_vline bug."""
+    if ts is None:
+        return ""
+    if isinstance(ts, str):
+        return ts
+    return pd.to_datetime(ts).strftime("%Y-%m-%d")
 
-def T(key: str) -> str:
-    lang = st.session_state.language
-    return TRANSLATIONS.get(lang, TRANSLATIONS["English"]).get(key, key)
+
+def metric_card(label, value, kind=""):
+    return (
+        f'<div class="metric-card {kind}">'
+        f'<div class="mc-label">{label}</div>'
+        f'<div class="mc-value">{value}</div>'
+        f'</div>'
+    )
+
+
+def recommend(eval_lstm, eval_gru) -> str:
+    """Return 'LSTM' or 'GRU' based on lower RMSE (test period)."""
+    return "LSTM" if eval_lstm["rmse"] <= eval_gru["rmse"] else "GRU"
 
 
 # ──────────────────────────────────────────────────────────────
-# SIDEBAR
+# MAIN TABS
 # ──────────────────────────────────────────────────────────────
-with st.sidebar:
-    st.markdown("## ⚙️ Settings")
+tab_labels = [
+    T("tab_home"),
+    T("tab_model_sel"),
+    T("tab_forecast"),
+    T("tab_portfolio"),
+    T("tab_perf"),
+    T("tab_about"),
+]
+tabs = st.tabs(tab_labels)
 
-    # ── Language ──────────────────────────────────────────────
-    lang_choice = st.selectbox(
-        T("lang_label"),
-        list(TRANSLATIONS.keys()),
-        index=list(TRANSLATIONS.keys()).index(st.session_state.language)
-    )
-    st.session_state.language = lang_choice
-    st.divider()
-
-    # ── Stock picker ──────────────────────────────────────────
-    st.markdown(f"**{T('sidebar_stocks')}**")
-
-    sector_map   = get_sector_map()
-    trend_tickers = get_trending_tickers()
-
-    # Build display labels: trending ones get 🔥
-    label_to_ticker = {}
-    for ticker in SORTED_TICKERS:
-        info  = STOCK_UNIVERSE[ticker]
-        label = f"{ticker} {'🔥' if info['trending'] else '  '} — {info['name']}"
-        label_to_ticker[label] = ticker
-
-    default_labels = [
-        lbl for lbl, tk in label_to_ticker.items()
-        if tk in st.session_state.selected_stocks
-    ]
-
-    chosen_labels = st.multiselect(
-        "",
-        options=list(label_to_ticker.keys()),
-        default=default_labels,
-        label_visibility="collapsed"
-    )
-    st.session_state.selected_stocks = [label_to_ticker[l] for l in chosen_labels]
-
-    if len(st.session_state.selected_stocks) < 2:
-        st.warning("⚠ Select at least 2 stocks.")
-
-    st.divider()
-
-    # ── Data period ───────────────────────────────────────────
-    period_opts = T("period_options")
-    period_idx  = period_opts.index(st.session_state.data_period) \
-                  if st.session_state.data_period in period_opts else 3
-    st.session_state.data_period = st.selectbox(
-        T("sidebar_period"), period_opts, index=period_idx
-    )
-
-    # ── Investment & risk-free rate ───────────────────────────
-    st.session_state.investment = st.number_input(
-        T("sidebar_invest"),
-        min_value=1_000.0,
-        max_value=10_000_000.0,
-        value=st.session_state.investment,
-        step=1_000.0,
-        format="%.0f"
-    )
-    rfr_pct = st.slider(
-        T("sidebar_rfr"),
-        min_value=0.0, max_value=10.0,
-        value=st.session_state.risk_free_rate * 100,
-        step=0.25
-    )
-    st.session_state.risk_free_rate = rfr_pct / 100.0
-    st.divider()
-
-    # ── STEP 1: Fetch data ─────────────────────────────────────
-    if st.button(T("btn_fetch"), use_container_width=True):
-        if not st.session_state.selected_stocks:
-            st.error("Select stocks first.")
+# ════════════════════════════════════════════════════════════════
+# TAB 0 — HOME
+# ════════════════════════════════════════════════════════════════
+with tabs[0]:
+    # ── Header row ──
+    hdr_left, hdr_right = st.columns([2, 1])
+    with hdr_left:
+        st.markdown(
+            "<h1 style='font-size:32px;font-weight:800;color:#111;margin:0'>"
+            "Invest Infinity</h1>"
+            "<p style='color:#555;font-size:15px;margin:4px 0 0 0'>"
+            "AI-powered portfolio optimization using LSTM &amp; GRU</p>",
+            unsafe_allow_html=True
+        )
+    with hdr_right:
+        lang = st.selectbox(
+            "Language",
+            list(TRANSLATIONS.keys()),
+            index=list(TRANSLATIONS.keys()).index(
+                st.session_state.get("language","English")
+            ),
+            label_visibility="collapsed"
+        )
+        st.session_state.language = lang
+        if st.session_state.logged_in:
+            st.success(f"Logged in: {st.session_state.username}")
         else:
-            with st.spinner("Fetching data from yfinance…"):
+            if st.button("Login / Sign Up", key="login_top"):
+                st.session_state.show_login = True
+
+    if st.session_state.get("show_login"):
+        with st.expander("Account", expanded=True):
+            c1, c2, c3 = st.columns([1,1,1])
+            with c1:
+                uname = st.text_input("Username")
+            with c2:
+                pwd   = st.text_input("Password", type="password")
+            with c3:
+                st.write("")
+                st.write("")
+                if st.button("Login"):
+                    if uname and pwd:
+                        st.session_state.logged_in = True
+                        st.session_state.username  = uname
+                        st.session_state.show_login = False
+                        st.success(f"Welcome, {uname}!")
+
+    st.markdown("<hr>", unsafe_allow_html=True)
+
+    # ── Two-column layout: How it works (left) | Control panel (right) ──
+    left_col, right_col = st.columns([1.2, 1])
+
+    with left_col:
+        st.markdown('<div class="sec-h">How it works</div>', unsafe_allow_html=True)
+        st.markdown("""
+**Step 1 — Select stocks** from the panel on the right (5–10 recommended).  
+**Step 2 — Fetch Data** — live OHLCV prices downloaded from Yahoo Finance.  
+**Step 3 — Train Models** — one LSTM and one GRU trained per company,  
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+using data up to the training cutoff date.  
+**Step 4 — Model Selection tab** — compare LSTM vs GRU metrics for each  
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+company, pick the best (or accept the recommendation).  
+**Step 5 — Run Analysis** — forecast + portfolio optimisation using your  
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+chosen models.
+        """)
+
+        if st.session_state.stock_data is not None:
+            df = st.session_state.stock_data
+            st.markdown('<div class="sec-h">Data loaded</div>', unsafe_allow_html=True)
+            src = st.session_state.data_source
+            tc  = ts_to_str(st.session_state.train_cut)
+            ts  = ts_to_str(st.session_state.test_start)
+            st.markdown(
+                f"Source: **{src}** &nbsp;|&nbsp; "
+                f"{len(df):,} rows &nbsp;|&nbsp; "
+                f"{df['Date'].min().date()} → {df['Date'].max().date()}  \n"
+                f"Train cutoff: **{tc}** &nbsp;|&nbsp; Test from: **{ts}**"
+            )
+            st.dataframe(
+                df.sort_values(["Company","Date"]).tail(20),
+                use_container_width=True, hide_index=True
+            )
+
+    with right_col:
+        st.markdown('<div class="right-panel">', unsafe_allow_html=True)
+        st.markdown('<div class="sec-h">Control Panel</div>', unsafe_allow_html=True)
+
+        # Stock picker — trending first with tag
+        label_to_ticker = {}
+        for tk in SORTED_TICKERS:
+            info  = STOCK_UNIVERSE[tk]
+            lbl   = f"{tk} {'[Trending]' if info['trending'] else ''} — {info['name']}"
+            label_to_ticker[lbl] = tk
+
+        default_labels = [
+            l for l, tk in label_to_ticker.items()
+            if tk in st.session_state.selected_stocks
+        ]
+        chosen = st.multiselect(
+            "Select stocks (5–10 recommended)",
+            options=list(label_to_ticker.keys()),
+            default=default_labels
+        )
+        st.session_state.selected_stocks = [label_to_ticker[l] for l in chosen]
+        if len(st.session_state.selected_stocks) < 2:
+            st.warning("Select at least 2 stocks.")
+
+        # Period + investment
+        period_opts = T("period_opts")
+        p_idx = period_opts.index(st.session_state.data_period) \
+                if st.session_state.data_period in period_opts else 3
+        st.session_state.data_period = st.selectbox(
+            "Historical data period", period_opts, index=p_idx
+        )
+        st.session_state.investment = st.number_input(
+            "Investment amount ($)",
+            min_value=1_000.0, max_value=10_000_000.0,
+            value=st.session_state.investment, step=1_000.0, format="%.0f"
+        )
+        rfr = st.slider(
+            "Risk-free rate (%)", 0.0, 10.0,
+            value=st.session_state.risk_free_rate * 100, step=0.25
+        )
+        st.session_state.risk_free_rate = rfr / 100.0
+
+        st.markdown("---")
+
+        # ── Step 1: Fetch ──
+        if st.button(T("fetch"), key="btn_fetch"):
+            if not st.session_state.selected_stocks:
+                st.error("Select stocks first.")
+            else:
+                bar = st.progress(0, text="Connecting to Yahoo Finance…")
                 try:
-                    df = fetch_stock_data(
+                    df, src, train_cut, test_start = fetch_stock_data(
                         st.session_state.selected_stocks,
                         period=st.session_state.data_period,
                         fallback_csv=FALLBACK_CSV
                     )
-                    st.session_state.stock_data = df
-                    st.success(T("fetch_success"))
-                    st.caption(
-                        f"{len(df)} rows · "
-                        f"{df['Company'].nunique()} companies · "
-                        f"{df['Date'].min().date()} → {df['Date'].max().date()}"
-                    )
-                except Exception as e:
-                    st.error(f"Fetch failed: {e}")
+                    bar.progress(50, text="Processing data…")
+                    st.session_state.stock_data  = df
+                    st.session_state.data_source = src
+                    st.session_state.train_cut   = train_cut
+                    st.session_state.test_start  = test_start
 
-    # ── STEP 2: Train models ──────────────────────────────────
-    if st.button(T("btn_train"), use_container_width=True):
-        if st.session_state.stock_data is None:
-            st.error(T("no_data_msg"))
-        else:
-            df    = st.session_state.stock_data
-            total = df["Company"].nunique()
-            prog  = st.progress(0)
-            log   = st.empty()
-            for i, company in enumerate(df["Company"].unique()):
-                log.text(f"Training {company} ({i+1}/{total})…")
-                df_c = df[df["Company"] == company].copy()
-                try:
-                    res = train(df_c, company, model_dir=MODEL_DIR)
+                    # Pre-split per company
+                    train_data, test_data = {}, {}
+                    for c in df["Company"].unique():
+                        df_c = df[df["Company"] == c].copy()
+                        tr, te = time_split(df_c, train_cut, test_start)
+                        if len(tr) > 80 and len(te) > 10:
+                            train_data[c] = tr
+                            test_data[c]  = te
+                    st.session_state.train_data = train_data
+                    st.session_state.test_data  = test_data
+                    bar.progress(100, text="Done!")
                     st.success(
-                        f"✅ **{company}** — val_loss: {res['val_loss']:.5f} "
-                        f"| RMSE≈{res['val_mae']:.4f} | {res['epochs_run']} epochs"
+                        f"Fetched via **{src}** — "
+                        f"{len(df):,} rows · {df['Company'].nunique()} tickers  \n"
+                        f"Train: up to {ts_to_str(train_cut)} · "
+                        f"Test: from {ts_to_str(test_start)}"
                     )
                 except Exception as e:
-                    st.error(f"❌ {company}: {e}")
-                prog.progress((i + 1) / total)
-            log.text(T("train_success"))
+                    bar.empty()
+                    st.error(f"Fetch error: {e}")
 
-    # ── STEP 3: Run analysis ──────────────────────────────────
-    if st.button(T("btn_run"), use_container_width=True, type="primary"):
-        if st.session_state.stock_data is None:
-            st.error(T("no_data_msg"))
-        else:
-            df = st.session_state.stock_data
-            forecast_results = {}
-            prog = st.progress(0)
-            companies = df["Company"].unique().tolist()
-            for i, company in enumerate(companies):
-                df_c = df[df["Company"] == company].copy()
-                try:
-                    res = forecast(df_c, company, model_dir=MODEL_DIR)
-                    forecast_results[company] = res
-                except FileNotFoundError:
-                    st.warning(f"⚠ {company}: {T('no_model_msg')}")
-                except Exception as e:
-                    st.error(f"❌ {company}: {e}")
-                prog.progress((i + 1) / len(companies))
+        # ── Step 2: Train ──
+        if st.button(T("train"), key="btn_train"):
+            if not st.session_state.train_data:
+                st.error("Fetch data first.")
+            else:
+                train_data = st.session_state.train_data
+                companies  = list(train_data.keys())
+                total      = len(companies) * 2   # LSTM + GRU each
+                done       = 0
+                bar        = st.progress(0, text="Starting training…")
+                train_results = {}
 
-            if forecast_results:
-                pm = build_price_matrix(df, list(forecast_results.keys()))
-                st.session_state.forecast_results = forecast_results
-                st.session_state.price_matrix     = pm
-                try:
-                    st.session_state.opt_results = optimise(
-                        forecast_results, pm,
-                        investment_amount=st.session_state.investment,
-                        risk_free_rate=st.session_state.risk_free_rate
-                    )
-                    st.success(T("run_success"))
-                except Exception as e:
-                    st.error(f"Optimisation failed: {e}")
+                for company in companies:
+                    train_results[company] = {}
+                    for mtype in ["LSTM", "GRU"]:
+                        bar.progress(done / total,
+                                     text=f"Training {company} / {mtype}…")
+                        try:
+                            res = train_model(
+                                train_data[company], company, mtype,
+                                model_dir=MODEL_DIR, verbose=0
+                            )
+                            train_results[company][mtype] = res
+                            st.success(
+                                f"{company} / {mtype} — "
+                                f"val_loss: {res['val_loss']:.5f} | "
+                                f"{res['epochs_run']} epochs"
+                            )
+                        except Exception as e:
+                            st.error(f"{company}/{mtype}: {e}")
+                        done += 1
 
-    st.divider()
+                bar.progress(1.0, text="Training complete!")
+                st.session_state.train_results = train_results
 
-    # ── Optional login ─────────────────────────────────────────
-    with st.expander(T("login_header")):
-        uname = st.text_input(T("login_user"), key="uname_input")
-        pwd   = st.text_input(T("login_pwd"), type="password", key="pwd_input")
-        if st.button(T("login_btn")):
-            if uname and pwd:
-                st.session_state.logged_in = True
-                st.session_state.username  = uname
-                st.success(f"Welcome, {uname}!")
-        if st.session_state.logged_in:
-            st.info(f"Logged in: {st.session_state.username}")
-            if st.button(T("save_btn")):
-                if st.session_state.opt_results:
-                    entry = {
-                        "user":    st.session_state.username,
-                        "stocks":  st.session_state.selected_stocks[:],
-                        "period":  st.session_state.data_period,
-                        "weights": st.session_state.opt_results["max_sharpe_weights"],
-                        "sharpe":  st.session_state.opt_results["performance"]["max_sharpe"]["sharpe_ratio"]
-                    }
-                    st.session_state.saved_analyses.append(entry)
-                    st.success("Saved!")
-                else:
-                    st.warning(T("no_result_msg"))
+                # Auto-evaluate on test set
+                bar2 = st.progress(0, text="Evaluating on test data…")
+                eval_results = {}
+                test_data    = st.session_state.test_data
+                for i, company in enumerate(companies):
+                    eval_results[company] = {}
+                    for mtype in ["LSTM", "GRU"]:
+                        if mtype in train_results.get(company, {}):
+                            try:
+                                er = evaluate_model(
+                                    test_data[company],
+                                    train_data[company],
+                                    company, mtype,
+                                    model_dir=MODEL_DIR
+                                )
+                                eval_results[company][mtype] = er
+                            except Exception as e:
+                                st.error(f"Eval {company}/{mtype}: {e}")
+                    bar2.progress((i + 1) / len(companies))
 
-# ──────────────────────────────────────────────────────────────
-# MAIN — TABS
-# ──────────────────────────────────────────────────────────────
-tab_home, tab_fc, tab_port, tab_perf, tab_about = st.tabs([
-    T("tab_home"), T("tab_forecast"), T("tab_portfolio"),
-    T("tab_perf"), T("tab_about")
-])
+                bar2.progress(1.0, text="Evaluation complete!")
+                st.session_state.eval_results = eval_results
 
+                # Auto-assign recommended models
+                sel = {}
+                for c, models in eval_results.items():
+                    if "LSTM" in models and "GRU" in models:
+                        sel[c] = recommend(models["LSTM"], models["GRU"])
+                    elif models:
+                        sel[c] = list(models.keys())[0]
+                st.session_state.selected_models = sel
+                st.info("Go to the **Model Selection** tab to review and confirm model choices.")
 
-# ════════════════════════════════════════════
-# TAB 1 — HOME
-# ════════════════════════════════════════════
-with tab_home:
-    st.title(f"📈 {T('app_title')}")
-    st.caption(T("tagline"))
-    st.divider()
+        # ── Step 3: Run Analysis ──
+        if st.button(T("run"), key="btn_run", type="primary"):
+            if not st.session_state.selected_models:
+                st.error("Train models and select one per company first.")
+            elif not st.session_state.stock_data is not None:
+                st.error("Fetch data first.")
+            else:
+                df         = st.session_state.stock_data
+                sel_models = st.session_state.selected_models
+                train_data = st.session_state.train_data
+                companies  = list(sel_models.keys())
+                bar        = st.progress(0, text="Forecasting…")
 
-    col_steps, col_stocks, col_kpi = st.columns([1.2, 1, 1])
+                forecast_results = {}
+                for i, company in enumerate(companies):
+                    mtype  = sel_models[company]
+                    df_c   = df[df["Company"] == company].copy()
+                    bar.progress(i / len(companies), text=f"Forecasting {company}…")
+                    try:
+                        fr = forecast_future(
+                            df_c, company, mtype,
+                            model_dir=MODEL_DIR,
+                            n_days=st.session_state.forecast_horizon
+                        )
+                        forecast_results[company] = fr
+                    except Exception as e:
+                        st.error(f"{company}: {e}")
 
-    with col_steps:
-        st.markdown('<div class="sec-header">How it works</div>', unsafe_allow_html=True)
-        st.markdown("""
-**1.** Select stocks in the sidebar (trending shown with 🔥)  
-**2.** Click **Fetch Data** — downloads live prices from Yahoo Finance  
-**3.** Click **Train Models** — fits one LSTM per stock  
-**4.** Click **Run Analysis** — forecasts prices + optimises portfolio  
-**5.** Explore Forecast · Portfolio · Performance tabs
-        """)
+                bar.progress(0.8, text="Optimising portfolio…")
+                if forecast_results:
+                    st.session_state.forecast_results = forecast_results
+                    pm = build_price_matrix(df, list(forecast_results.keys()))
+                    st.session_state.price_matrix = pm
+                    try:
+                        st.session_state.opt_results = optimise(
+                            forecast_results, pm,
+                            investment_amount=st.session_state.investment,
+                            risk_free_rate=st.session_state.risk_free_rate
+                        )
+                        bar.progress(1.0, text="Analysis complete!")
+                        st.success("Analysis complete! See Forecast and Portfolio tabs.")
+                    except Exception as e:
+                        st.error(f"Optimisation failed: {e}")
 
-    with col_stocks:
-        st.markdown('<div class="sec-header">Selected stocks</div>', unsafe_allow_html=True)
-        if st.session_state.selected_stocks:
-            for c in st.session_state.selected_stocks:
-                info = STOCK_UNIVERSE.get(c, {})
-                badge = f'<span class="tbadge">🔥 Trending</span>' if info.get("trending") else ""
-                st.markdown(
-                    f'<span class="sbadge">{c}</span> {info.get("name","")}{badge}',
-                    unsafe_allow_html=True
-                )
-        else:
-            st.info("No stocks selected.")
+        st.markdown('</div>', unsafe_allow_html=True)
 
-    with col_kpi:
-        st.markdown('<div class="sec-header">Quick summary</div>', unsafe_allow_html=True)
-        st.metric("Stocks selected", len(st.session_state.selected_stocks))
-        st.metric("Investment", f"${st.session_state.investment:,.0f}")
-        if st.session_state.opt_results:
-            ms = st.session_state.opt_results["performance"]["max_sharpe"]
-            st.metric(T("sharpe"), f"{ms['sharpe_ratio']:.3f}")
-            st.metric(T("ann_ret"), f"{ms['expected_return']*100:.1f}%")
-
-    # Data preview
-    if st.session_state.stock_data is not None:
-        st.divider()
-        st.markdown(f'<div class="sec-header">{T("data_preview")}</div>',
-                    unsafe_allow_html=True)
-        df_prev = st.session_state.stock_data
-        st.caption(
-            f"Source: **yfinance** · {len(df_prev):,} rows · "
-            f"{df_prev['Company'].nunique()} tickers · "
-            f"{df_prev['Date'].min().date()} → {df_prev['Date'].max().date()}"
-        )
-        st.dataframe(
-            df_prev.sort_values(["Company","Date"]).tail(30),
-            use_container_width=True, hide_index=True
+        # Forecast horizon slider
+        st.session_state.forecast_horizon = st.slider(
+            "Future forecast horizon (days)", 7, 90,
+            value=st.session_state.forecast_horizon, step=1
         )
 
 
-# ════════════════════════════════════════════
-# TAB 2 — FORECAST
-# ════════════════════════════════════════════
-with tab_fc:
-    st.header(f"📊 {T('forecast_title')}")
+# ════════════════════════════════════════════════════════════════
+# TAB 1 — MODEL SELECTION
+# ════════════════════════════════════════════════════════════════
+with tabs[1]:
+    st.markdown('<h2 style="color:#111">Model Selection</h2>', unsafe_allow_html=True)
+    st.markdown(
+        "Review LSTM vs GRU performance for each company. "
+        "The dashboard recommends the better model, but you can override."
+    )
 
-    fr = st.session_state.forecast_results
-    if not fr:
-        st.info(f"⬅️ {T('no_result_msg')}")
+    er = st.session_state.eval_results
+    if not er:
+        st.info("Train models first (Home tab → Train Models).")
     else:
-        for company, res in fr.items():
-            info = STOCK_UNIVERSE.get(company, {"name": company, "sector": "—"})
+        for company, models in er.items():
+            if not models:
+                continue
+
+            lstm_e = models.get("LSTM")
+            gru_e  = models.get("GRU")
+
+            # Determine recommended
+            rec = None
+            if lstm_e and gru_e:
+                rec = recommend(lstm_e, gru_e)
+            elif lstm_e:
+                rec = "LSTM"
+            elif gru_e:
+                rec = "GRU"
+
+            info = STOCK_UNIVERSE.get(company, {})
             with st.expander(
-                f"**{company}** — {info['name']}  |  {info['sector']}",
+                f"{company} — {info.get('name', company)}",
                 expanded=True
             ):
-                # ── KPI row ──
-                c1, c2, c3, c4, c5 = st.columns(5)
-                pct_change = (
-                    (res["forecast_prices"][-1] - res["last_known_price"])
-                    / res["last_known_price"] * 100
+                # ── Side-by-side metric comparison ──
+                col_lstm, col_gru = st.columns(2)
+
+                for col, mtype, e in [
+                    (col_lstm, "LSTM", lstm_e),
+                    (col_gru,  "GRU",  gru_e)
+                ]:
+                    with col:
+                        rec_html = (
+                            '<span class="rec-badge">Recommended</span>'
+                            if mtype == rec else ""
+                        )
+                        st.markdown(
+                            f"<h4 style='color:#111;margin:0'>{mtype} {rec_html}</h4>",
+                            unsafe_allow_html=True
+                        )
+                        if e is None:
+                            st.warning("Not trained.")
+                            continue
+
+                        m1, m2, m3, m4 = st.columns(4)
+                        m1.metric("RMSE", f"{e['rmse']:.3f}")
+                        m2.metric("MSE",  f"{e['mse']:.3f}")
+                        m3.metric("MAE",  f"{e['mae']:.3f}")
+                        m4.metric("MAPE", f"{e['mape']:.2f}%")
+
+                        # ── Actual vs Predicted chart ──
+                        # BUG FIX: convert dates to strings before plotting
+                        # (avoids Plotly Timestamp arithmetic crash)
+                        dates_str  = [ts_to_str(d) for d in e["actual_dates"]]
+
+                        fig = go.Figure()
+                        fig.add_trace(go.Scatter(
+                            x=dates_str,
+                            y=e["actual_prices"],
+                            name="Actual Prices",
+                            line=dict(color="#1565C0", width=1.8)
+                        ))
+                        fig.add_trace(go.Scatter(
+                            x=dates_str,
+                            y=e["predicted_prices"],
+                            name="Predicted Prices",
+                            line=dict(color="#C62828", width=1.8, dash="dot")
+                        ))
+                        fig.update_layout(
+                            title=dict(
+                                text=f"{company} — {mtype} Stock Price Prediction",
+                                font=dict(size=13, color="#111")
+                            ),
+                            template="plotly_white",
+                            height=300,
+                            margin=dict(l=0, r=0, t=36, b=0),
+                            xaxis_title="Date",
+                            yaxis_title="Stock Price ($)",
+                            legend=dict(orientation="h", y=-0.3),
+                            paper_bgcolor="#ffffff",
+                            plot_bgcolor="#ffffff",
+                            font=dict(color="#111")
+                        )
+                        st.plotly_chart(fig, use_container_width=True)
+
+                # ── Model selector for this company ──
+                current = st.session_state.selected_models.get(company, rec)
+                choices = [m for m in ["LSTM", "GRU"] if m in models]
+
+                chosen_model = st.radio(
+                    f"Use for {company}:",
+                    choices,
+                    index=choices.index(current) if current in choices else 0,
+                    horizontal=True,
+                    key=f"sel_{company}"
                 )
-                delta_cls = "pos" if pct_change >= 0 else "neg"
-                c1.metric(T("last_price"),     f"${res['last_known_price']:.2f}")
-                c2.metric(T("day30_forecast"),  f"${res['forecast_prices'][-1]:.2f}")
-                c3.metric(T("exp_change"),      f"{pct_change:+.1f}%",
-                          delta_color="normal")
-                c4.metric(T("rmse_label"),      f"{res['rmse']:.3f}")
-                c5.metric(T("mape_label"),      f"{res['mape']:.2f}%")
+                st.session_state.selected_models[company] = chosen_model
+                st.caption(
+                    f"Selected: **{chosen_model}** for {company}  "
+                    f"{'(matches recommendation)' if chosen_model == rec else '(manual override)'}"
+                )
 
-                # ── Chart ──
+
+# ════════════════════════════════════════════════════════════════
+# TAB 2 — FORECAST
+# ════════════════════════════════════════════════════════════════
+with tabs[2]:
+    st.markdown('<h2 style="color:#111">Future Price Forecast</h2>',
+                unsafe_allow_html=True)
+
+    fr = st.session_state.forecast_results
+    er = st.session_state.eval_results
+    sel = st.session_state.selected_models
+
+    if not fr:
+        st.info("Run Analysis first (Home tab).")
+    else:
+        for company, res in fr.items():
+            mtype = sel.get(company, "LSTM")
+            info  = STOCK_UNIVERSE.get(company, {})
+            with st.expander(
+                f"{company} — {info.get('name', company)} | Model: {mtype}",
+                expanded=True
+            ):
+                # KPI row
+                pct = (res["forecast_prices"][-1] - res["last_known_price"]) \
+                      / res["last_known_price"] * 100
+                c1, c2, c3 = st.columns(3)
+                c1.metric("Last known price",   f"${res['last_known_price']:.2f}")
+                c2.metric(f"Day-{len(res['forecast_prices'])} forecast",
+                          f"${res['forecast_prices'][-1]:.2f}")
+                c3.metric("Expected change", f"{pct:+.1f}%", delta_color="normal")
+
+                # BUG FIX: convert all dates to plain strings
+                last_date_str   = ts_to_str(res["last_known_date"])
+                forecast_dates  = [ts_to_str(d) for d in res["forecast_dates"]]
+
+                # Include eval test-period actual+pred if available
                 fig = go.Figure()
+                e = er.get(company, {}).get(mtype)
+                if e:
+                    test_dates_str = [ts_to_str(d) for d in e["actual_dates"]]
+                    fig.add_trace(go.Scatter(
+                        x=test_dates_str,
+                        y=e["actual_prices"],
+                        name="Actual (test period)",
+                        line=dict(color="#1565C0", width=1.8)
+                    ))
+                    fig.add_trace(go.Scatter(
+                        x=test_dates_str,
+                        y=e["predicted_prices"],
+                        name=f"{mtype} on test data",
+                        line=dict(color="#C62828", width=1.5, dash="dot")
+                    ))
 
-                # Actual (test period)
+                # Forecast band ±2%
                 fig.add_trace(go.Scatter(
-                    x=res["actual_dates"],
-                    y=res["actual_prices"],
-                    name="Actual (test)",
-                    line=dict(color="#4fc3f7", width=2)
-                ))
-                # Model predictions on test period
-                fig.add_trace(go.Scatter(
-                    x=res["actual_dates"],
-                    y=res["predicted_prices"],
-                    name="LSTM predicted",
-                    line=dict(color="#ffb300", width=1.5, dash="dot")
-                ))
-                # Future forecast band
-                fig.add_trace(go.Scatter(
-                    x=res["forecast_dates"] + res["forecast_dates"][::-1],
+                    x=forecast_dates + forecast_dates[::-1],
                     y=[p * 1.02 for p in res["forecast_prices"]] +
                       [p * 0.98 for p in res["forecast_prices"][::-1]],
                     fill="toself",
-                    fillcolor="rgba(129,199,132,0.10)",
+                    fillcolor="rgba(39,174,96,0.10)",
                     line=dict(color="rgba(0,0,0,0)"),
-                    name="±2% band",
-                    showlegend=True
+                    name="±2% confidence band"
                 ))
-                # Future forecast line
                 fig.add_trace(go.Scatter(
-                    x=res["forecast_dates"],
+                    x=forecast_dates,
                     y=res["forecast_prices"],
-                    name="Forecast (30d)",
-                    line=dict(color="#81c784", width=2)
+                    name="Future forecast",
+                    line=dict(color="#27ae60", width=2.2)
                 ))
-                # Vertical separator
-                fig.add_vline(
-                    x=pd.to_datetime(res["forecast_dates"][0]),
-                    line_dash="dash", line_color="rgba(255,255,255,0.3)",
-                    annotation_text="Forecast →",
-                    annotation_position="top right"
-                )
+
+                # BUG FIX: pass ISO string, NOT Timestamp, to add_vline
+                if forecast_dates:
+                    fig.add_vline(
+                        x=forecast_dates[0],   # ← string, not Timestamp
+                        line_dash="dash",
+                        line_color="rgba(0,0,0,0.25)",
+                        annotation_text="Forecast start",
+                        annotation_position="top right"
+                    )
 
                 fig.update_layout(
-                    template="plotly_dark",
-                    height=380,
-                    margin=dict(l=0, r=0, t=30, b=0),
-                    legend=dict(orientation="h", y=-0.22),
-                    yaxis_title="Price ($)",
+                    title=dict(
+                        text=f"{company} Stock Price Prediction",
+                        font=dict(size=14, color="#111")
+                    ),
+                    template="plotly_white",
+                    height=400,
+                    margin=dict(l=0, r=0, t=36, b=0),
                     xaxis_title="Date",
-                    hovermode="x unified"
+                    yaxis_title="Stock Price ($)",
+                    legend=dict(orientation="h", y=-0.25),
+                    paper_bgcolor="#ffffff",
+                    plot_bgcolor="#ffffff",
+                    font=dict(color="#111")
                 )
                 st.plotly_chart(fig, use_container_width=True)
 
 
-# ════════════════════════════════════════════
+# ════════════════════════════════════════════════════════════════
 # TAB 3 — PORTFOLIO
-# ════════════════════════════════════════════
-with tab_port:
-    st.header(f"💼 {T('allocation')}")
+# ════════════════════════════════════════════════════════════════
+with tabs[3]:
+    st.markdown('<h2 style="color:#111">Portfolio Optimisation</h2>',
+                unsafe_allow_html=True)
 
     opt = st.session_state.opt_results
     if opt is None:
-        st.info(f"⬅️ {T('no_result_msg')}")
+        st.info("Run Analysis first.")
     else:
-        # Strategy radio
         strategy = st.radio(
-            T("strategy"),
-            [T("max_sharpe"), T("min_vol"), T("equal_w")],
+            "Strategy",
+            ["Max Sharpe", "Min Volatility", "Equal Weight"],
             horizontal=True
         )
         key_map = {
-            T("max_sharpe"): ("max_sharpe_weights", "max_sharpe"),
-            T("min_vol"):    ("min_vol_weights",    "min_vol"),
-            T("equal_w"):    ("equal_weights",      "equal"),
+            "Max Sharpe":    ("max_sharpe_weights", "max_sharpe"),
+            "Min Volatility":("min_vol_weights",    "min_vol"),
+            "Equal Weight":  ("equal_weights",      "equal"),
         }
         w_key, p_key = key_map[strategy]
         weights = opt[w_key]
         perf    = opt["performance"][p_key]
         risk    = opt["risk_metrics"]
 
-        # ── Top KPI strip ──
+        # KPI strip
+        kpi_cols = st.columns(6)
         kpis = [
-            (T("sharpe"),    f"{perf['sharpe_ratio']:.3f}",   ""),
-            (T("ann_ret"),   f"{perf['expected_return']*100:.1f}%",
-             "pos" if perf["expected_return"] > 0 else "neg"),
-            (T("ann_vol"),   f"{perf['volatility']*100:.1f}%", ""),
-            (T("var95"),     f"{risk['var_95']*100:.2f}%",     "neg"),
-            (T("cvar95"),    f"{risk['cvar_95']*100:.2f}%",    "neg"),
-            (T("max_dd"),    f"{risk['max_drawdown']*100:.1f}%","neg"),
+            ("Sharpe Ratio",     f"{perf['sharpe_ratio']:.3f}",         "good" if perf["sharpe_ratio"] > 1 else ""),
+            ("Annual Return",    f"{perf['expected_return']*100:.1f}%",  "good" if perf["expected_return"] > 0 else "bad"),
+            ("Annual Volatility",f"{perf['volatility']*100:.1f}%",       ""),
+            ("VaR 95%",          f"{risk['var_95']*100:.2f}%",           "warn"),
+            ("CVaR 95%",         f"{risk['cvar_95']*100:.2f}%",          "bad"),
+            ("Max Drawdown",     f"{risk['max_drawdown']*100:.1f}%",     "bad"),
         ]
-        cols = st.columns(len(kpis))
-        for col, (lbl, val, cls) in zip(cols, kpis):
-            col.markdown(
-                f'<div class="kpi-card">'
-                f'<div class="kpi-label">{lbl}</div>'
-                f'<div class="kpi-value {cls}">{val}</div>'
-                f'</div>',
-                unsafe_allow_html=True
-            )
+        for col, (lbl, val, kind) in zip(kpi_cols, kpis):
+            col.markdown(metric_card(lbl, val, kind), unsafe_allow_html=True)
 
-        st.divider()
-        col_donut, col_table = st.columns([1, 1])
+        st.markdown("<hr>", unsafe_allow_html=True)
+        col_donut, col_table = st.columns([1.1, 1])
 
         with col_donut:
-            st.markdown(f'<div class="sec-header">{T("allocation")} — donut</div>',
+            st.markdown('<div class="sec-h">Optimal Allocation</div>',
                         unsafe_allow_html=True)
             labels  = [k for k, v in weights.items() if v > 0.001]
             values  = [weights[k] for k in labels]
             amounts = [v * st.session_state.investment for v in values]
-            colors  = px.colors.qualitative.Bold[:len(labels)]
-
-            fig_d = go.Figure(go.Pie(
-                labels=labels,
-                values=values,
-                hole=0.55,
-                marker=dict(colors=colors),
+            fig_d   = go.Figure(go.Pie(
+                labels=labels, values=values, hole=0.55,
+                marker=dict(colors=px.colors.qualitative.Dark2[:len(labels)]),
                 textinfo="label+percent",
-                hovertemplate=(
-                    "<b>%{label}</b><br>"
-                    "Weight: %{percent}<br>"
-                    "Amount: $%{customdata:,.0f}"
-                    "<extra></extra>"
-                ),
+                hovertemplate="<b>%{label}</b><br>Weight: %{percent}<br>"
+                              "Amount: $%{customdata:,.0f}<extra></extra>",
                 customdata=amounts
             ))
             fig_d.add_annotation(
                 text=f"${st.session_state.investment/1000:.0f}K",
                 x=0.5, y=0.5, showarrow=False,
-                font=dict(size=20, color="white")
+                font=dict(size=22, color="#111")
             )
             fig_d.update_layout(
-                template="plotly_dark", height=340,
+                template="plotly_white", height=320,
                 margin=dict(l=0, r=0, t=10, b=0),
-                showlegend=True,
-                legend=dict(orientation="v", x=1.02, y=0.5)
+                paper_bgcolor="#ffffff",
+                font=dict(color="#111")
             )
             st.plotly_chart(fig_d, use_container_width=True)
 
         with col_table:
-            st.markdown(
-                f'<div class="sec-header">{T("shares_to_buy")}</div>',
-                unsafe_allow_html=True
-            )
+            st.markdown('<div class="sec-h">Shares to Buy</div>',
+                        unsafe_allow_html=True)
             pm = st.session_state.price_matrix
             if w_key == "max_sharpe_weights" and opt.get("discrete_allocation") and pm is not None:
                 alloc = opt["discrete_allocation"]
-                rows = []
-                for c, n_shares in alloc.items():
+                rows  = []
+                for c, n_sh in alloc.items():
                     price = float(pm[c].iloc[-1]) if c in pm.columns else 0
                     rows.append({
-                        "Ticker":   c,
-                        "Name":     STOCK_UNIVERSE.get(c, {}).get("name", c),
-                        "Weight":   f"{weights.get(c,0)*100:.1f}%",
-                        "Shares":   n_shares,
-                        "Price":    f"${price:.2f}",
-                        "Amount":   f"${n_shares * price:,.0f}"
+                        "Ticker": c,
+                        "Weight": f"{weights.get(c,0)*100:.1f}%",
+                        "Shares": n_sh,
+                        "Price":  f"${price:.2f}",
+                        "Amount": f"${n_sh*price:,.0f}"
                     })
-                st.dataframe(
-                    pd.DataFrame(rows),
-                    use_container_width=True, hide_index=True
-                )
-                st.metric(T("leftover"), f"${opt['leftover']:.2f}")
+                st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+                st.metric("Leftover cash", f"${opt['leftover']:.2f}")
             else:
-                rows = []
-                for c, w in weights.items():
-                    if w > 0.001:
-                        rows.append({
-                            "Ticker": c,
-                            "Weight": f"{w*100:.1f}%",
-                            "Amount": f"${w*st.session_state.investment:,.0f}"
-                        })
-                st.dataframe(
-                    pd.DataFrame(rows),
-                    use_container_width=True, hide_index=True
-                )
+                rows = [
+                    {"Ticker": c, "Weight": f"{w*100:.1f}%",
+                     "Amount": f"${w*st.session_state.investment:,.0f}"}
+                    for c, w in weights.items() if w > 0.001
+                ]
+                st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
 
-        # ── Correlation heatmap ──
-        st.divider()
-        st.markdown(
-            f'<div class="sec-header">{T("corr_title")}</div>',
-            unsafe_allow_html=True
-        )
+        # Correlation heatmap
+        st.markdown('<div class="sec-h">Return Correlation Matrix</div>',
+                    unsafe_allow_html=True)
         corr = opt["correlation_matrix"]
         fig_h = px.imshow(
             corr, color_continuous_scale="RdBu_r",
             zmin=-1, zmax=1, text_auto=".2f",
-            template="plotly_dark"
+            template="plotly_white"
         )
         fig_h.update_layout(
-            height=360, margin=dict(l=0, r=0, t=10, b=0)
+            height=320, margin=dict(l=0, r=0, t=10, b=0),
+            paper_bgcolor="#ffffff", font=dict(color="#111")
         )
         st.plotly_chart(fig_h, use_container_width=True)
 
 
-# ════════════════════════════════════════════
+# ════════════════════════════════════════════════════════════════
 # TAB 4 — PERFORMANCE
-# ════════════════════════════════════════════
-with tab_perf:
-    st.header(f"📈 {T('perf_title') if 'perf_title' in TRANSLATIONS['English'] else 'Portfolio Performance'}")
+# ════════════════════════════════════════════════════════════════
+with tabs[4]:
+    st.markdown('<h2 style="color:#111">Portfolio Performance</h2>',
+                unsafe_allow_html=True)
 
     opt = st.session_state.opt_results
     pm  = st.session_state.price_matrix
 
     if opt is None or pm is None:
-        st.info(f"⬅️ {T('no_result_msg')}")
+        st.info("Run Analysis first.")
     else:
-        col_ef, col_bt = st.columns([1, 1])
+        col_ef, col_bt = st.columns(2)
 
-        # ── Efficient frontier ──
         with col_ef:
-            st.markdown(
-                f'<div class="sec-header">{T("frontier_title")}</div>',
-                unsafe_allow_html=True
-            )
+            st.markdown('<div class="sec-h">Efficient Frontier</div>',
+                        unsafe_allow_html=True)
             fd   = opt["frontier_data"]
             ms_p = opt["performance"]["max_sharpe"]
             mv_p = opt["performance"]["min_vol"]
-
             fig_ef = go.Figure()
             if fd["volatilities"]:
                 fig_ef.add_trace(go.Scatter(
-                    x=[v * 100 for v in fd["volatilities"]],
-                    y=[r * 100 for r in fd["returns"]],
+                    x=[v*100 for v in fd["volatilities"]],
+                    y=[r*100 for r in fd["returns"]],
                     mode="lines", name="Efficient Frontier",
-                    line=dict(color="#4fc3f7", width=2.5)
+                    line=dict(color="#1565C0", width=2)
                 ))
             fig_ef.add_trace(go.Scatter(
-                x=[ms_p["volatility"] * 100],
-                y=[ms_p["expected_return"] * 100],
-                mode="markers+text",
-                text=["★ Max Sharpe"],
+                x=[ms_p["volatility"]*100], y=[ms_p["expected_return"]*100],
+                mode="markers+text", text=["Max Sharpe"],
                 textposition="top right",
-                marker=dict(size=14, color="#ffb300", symbol="star"),
+                marker=dict(size=14, color="#e65100", symbol="star"),
                 name="Max Sharpe"
             ))
             fig_ef.add_trace(go.Scatter(
-                x=[mv_p["volatility"] * 100],
-                y=[mv_p["expected_return"] * 100],
-                mode="markers+text",
-                text=["◆ Min Vol"],
+                x=[mv_p["volatility"]*100], y=[mv_p["expected_return"]*100],
+                mode="markers+text", text=["Min Vol"],
                 textposition="top right",
-                marker=dict(size=12, color="#81c784", symbol="diamond"),
+                marker=dict(size=12, color="#1a7a4a", symbol="diamond"),
                 name="Min Volatility"
             ))
             fig_ef.update_layout(
-                template="plotly_dark", height=350,
+                template="plotly_white", height=360,
                 xaxis_title="Annual Volatility (%)",
                 yaxis_title="Annual Return (%)",
                 margin=dict(l=0, r=0, t=10, b=0),
+                paper_bgcolor="#ffffff", font=dict(color="#111"),
                 legend=dict(orientation="h", y=-0.25)
             )
             st.plotly_chart(fig_ef, use_container_width=True)
 
-        # ── Historical backtest ──
         with col_bt:
-            st.markdown(
-                f'<div class="sec-header">{T("backtest_title")}</div>',
-                unsafe_allow_html=True
-            )
+            st.markdown('<div class="sec-h">Historical Backtest</div>',
+                        unsafe_allow_html=True)
             bt = backtest(pm, opt["max_sharpe_weights"])
             fig_bt = go.Figure()
             fig_bt.add_trace(go.Scatter(
-                x=bt["Date"], y=bt["Portfolio"],
+                x=bt["Date"].astype(str), y=bt["Portfolio"],
                 name="Optimised Portfolio",
-                line=dict(color="#4fc3f7", width=2),
-                fill="tozeroy", fillcolor="rgba(79,195,247,0.06)"
+                line=dict(color="#1565C0", width=2),
+                fill="tozeroy", fillcolor="rgba(21,101,192,0.05)"
             ))
             fig_bt.add_trace(go.Scatter(
-                x=bt["Date"], y=bt["EqualWeight"],
+                x=bt["Date"].astype(str), y=bt["EqualWeight"],
                 name="Equal Weight",
-                line=dict(color="#ff7043", width=1.5, dash="dash")
+                line=dict(color="#e65100", width=1.5, dash="dash")
             ))
             fig_bt.update_layout(
-                template="plotly_dark", height=350,
-                yaxis_title="Value (start=100)",
+                template="plotly_white", height=360,
+                yaxis_title="Value (normalised to 100)",
                 xaxis_title="Date",
                 margin=dict(l=0, r=0, t=10, b=0),
+                paper_bgcolor="#ffffff", font=dict(color="#111"),
                 legend=dict(orientation="h", y=-0.25)
             )
             st.plotly_chart(fig_bt, use_container_width=True)
 
-        # ── Strategy comparison table ──
-        st.divider()
-        st.markdown(
-            f'<div class="sec-header">{T("compare_title")}</div>',
-            unsafe_allow_html=True
-        )
-        p  = opt["performance"]
-        r  = opt["risk_metrics"]
+        # Strategy comparison table
+        st.markdown('<div class="sec-h">Strategy Comparison</div>',
+                    unsafe_allow_html=True)
+        p = opt["performance"]; r = opt["risk_metrics"]
         table = pd.DataFrame({
-            "Metric": [T("ann_ret"), T("ann_vol"), T("sharpe"),
-                       T("var95"), T("cvar95"), T("max_dd")],
-            T("max_sharpe"): [
+            "Metric": ["Annual Return","Annual Volatility","Sharpe Ratio",
+                       "VaR 95%","CVaR 95%","Max Drawdown"],
+            "Max Sharpe": [
                 f"{p['max_sharpe']['expected_return']*100:.1f}%",
                 f"{p['max_sharpe']['volatility']*100:.1f}%",
                 f"{p['max_sharpe']['sharpe_ratio']:.3f}",
-                f"{r['var_95']*100:.2f}%",
-                f"{r['cvar_95']*100:.2f}%",
+                f"{r['var_95']*100:.2f}%", f"{r['cvar_95']*100:.2f}%",
                 f"{r['max_drawdown']*100:.1f}%"
             ],
-            T("min_vol"): [
+            "Min Volatility": [
                 f"{p['min_vol']['expected_return']*100:.1f}%",
                 f"{p['min_vol']['volatility']*100:.1f}%",
                 f"{p['min_vol']['sharpe_ratio']:.3f}",
                 "—", "—", "—"
             ],
-            T("equal_w"): [
+            "Equal Weight": [
                 f"{p['equal']['expected_return']*100:.1f}%",
                 f"{p['equal']['volatility']*100:.1f}%",
                 f"{p['equal']['sharpe_ratio']:.3f}",
@@ -897,113 +1089,91 @@ with tab_perf:
         })
         st.dataframe(table, use_container_width=True, hide_index=True)
 
-        # ── Per-stock weight bar chart ──
-        st.divider()
-        st.markdown('<div class="sec-header">Weight breakdown by strategy</div>',
+        # Per-company weight bar chart
+        st.markdown('<div class="sec-h">Weight Breakdown by Strategy</div>',
                     unsafe_allow_html=True)
-        strategies_for_bar = {
-            T("max_sharpe"): opt["max_sharpe_weights"],
-            T("min_vol"):    opt["min_vol_weights"],
-            T("equal_w"):    opt["equal_weights"],
-        }
-        bar_data = []
-        for strat, wts in strategies_for_bar.items():
-            for ticker, w in wts.items():
-                bar_data.append({"Strategy": strat, "Ticker": ticker, "Weight": w * 100})
+        bar_rows = []
+        for strat, wts in [("Max Sharpe", opt["max_sharpe_weights"]),
+                           ("Min Vol",    opt["min_vol_weights"]),
+                           ("Equal",      opt["equal_weights"])]:
+            for tk, w in wts.items():
+                bar_rows.append({"Strategy": strat, "Ticker": tk, "Weight %": w*100})
         fig_bar = px.bar(
-            pd.DataFrame(bar_data),
-            x="Ticker", y="Weight", color="Strategy",
-            barmode="group", template="plotly_dark",
-            labels={"Weight": "Weight (%)"},
-            color_discrete_sequence=px.colors.qualitative.Bold
+            pd.DataFrame(bar_rows),
+            x="Ticker", y="Weight %", color="Strategy",
+            barmode="group", template="plotly_white",
+            color_discrete_sequence=["#1565C0","#1a7a4a","#e65100"]
         )
-        fig_bar.update_layout(height=320, margin=dict(l=0, r=0, t=10, b=0))
+        fig_bar.update_layout(
+            height=300, margin=dict(l=0,r=0,t=10,b=0),
+            paper_bgcolor="#ffffff", font=dict(color="#111")
+        )
         st.plotly_chart(fig_bar, use_container_width=True)
 
-        # ── Saved analyses ──
+        # Saved analyses
         if st.session_state.logged_in and st.session_state.saved_analyses:
-            st.divider()
-            st.markdown(
-                f'<div class="sec-header">{T("saved_header")}</div>',
-                unsafe_allow_html=True
-            )
+            st.markdown('<div class="sec-h">Saved Analyses</div>',
+                        unsafe_allow_html=True)
             for i, a in enumerate(st.session_state.saved_analyses, 1):
                 st.markdown(
                     f"**{i}.** `{', '.join(a['stocks'])}` — "
-                    f"Sharpe: **{a['sharpe']:.3f}** | "
-                    f"Period: {a['period']}"
+                    f"Sharpe: **{a['sharpe']:.3f}** | Period: {a['period']}"
                 )
 
 
-# ════════════════════════════════════════════
+# ════════════════════════════════════════════════════════════════
 # TAB 5 — ABOUT
-# ════════════════════════════════════════════
-with tab_about:
-    st.header("ℹ️ Methodology & About")
-
-    col_l, col_r = st.columns(2)
-    with col_l:
+# ════════════════════════════════════════════════════════════════
+with tabs[5]:
+    st.markdown('<h2 style="color:#111">About & Methodology</h2>',
+                unsafe_allow_html=True)
+    c1, c2 = st.columns(2)
+    with c1:
         st.markdown("""
 ### Data pipeline
-1. **yfinance** downloads OHLCV prices for any ticker (auto-adjusted for splits & dividends)
-2. **Feature engineering** adds 4 technical indicators per stock:
-   - RSI-14 (momentum oscillator)
-   - MACD 12-26 (trend / momentum)
-   - Bollinger %B (mean-reversion position)
+1. **yfinance** downloads live OHLCV (auto-adjusted for splits/dividends)
+2. **Feature engineering** adds 4 technical indicators:
+   - RSI-14 (momentum)
+   - MACD 12-26 (trend)
+   - Bollinger %B (mean-reversion)
    - EMA ratio = Close / EMA50 (trend strength)
-3. **MinMaxScaler** fitted on training data only (no leakage)
-4. **Sliding windows** of 60 timesteps × 9 features → supervised sequences
+3. **Strict time split** — scaler fitted on training data only
+4. **60-timestep sliding windows** × 9 features per sample
 
-### LSTM architecture
-| Layer    | Config                          |
-|----------|---------------------------------|
-| Input    | (60, 9)                         |
-| LSTM-1   | 128 units, return_sequences=True|
-| Dropout  | 0.30                            |
-| LSTM-2   | 64 units, return_sequences=False|
-| Dropout  | 0.30                            |
-| Dense-1  | 32 units, ReLU                  |
-| Dense-2  | 1 unit, Linear (regression)     |
-| Optimiser| Adam lr=0.001                   |
-| Loss     | MSE                             |
-""")
+### Time-based split
+| Period | Dates |
+|--------|-------|
+| Training | Start → 2023-12-31 |
+| Testing  | 2024-01-01 → present |
 
-    with col_r:
+Training and test sets are **never shuffled**. No future data leakage.
+        """)
+    with c2:
         st.markdown("""
+### Models
+| Parameter   | LSTM / GRU |
+|-------------|------------|
+| Layer 1     | 128 units, return_seq=True |
+| Dropout     | 0.30       |
+| Layer 2     | 64 units, return_seq=False |
+| Dropout     | 0.30       |
+| Dense       | 32 → 1 (linear) |
+| Optimiser   | Adam lr=0.001 |
+| Loss        | MSE        |
+| EarlyStopping | patience=15 |
+| Forecast    | 30-day iterative |
+
 ### Portfolio optimisation
-1. **Expected returns** = 60% LSTM 30-day forecast (annualised) + 40% historical mean
-2. **Covariance** = Ledoit-Wolf shrinkage estimator
-3. **Efficient Frontier** via PyPortfolioOpt:
-   - Max Sharpe portfolio
-   - Min Volatility portfolio
-   - Equal-weight baseline
-4. **Discrete allocation** = greedy algorithm for whole-share counts
-5. **Risk metrics**:
-   - VaR 95% (Historical simulation)
-   - CVaR 95% (Expected Shortfall)
-   - Maximum Drawdown
+- **Expected returns**: 60% LSTM/GRU + 40% historical mean
+- **Covariance**: Ledoit-Wolf shrinkage
+- **Strategies**: Max Sharpe · Min Volatility · Equal Weight
+- **Risk metrics**: VaR 95%, CVaR 95%, Max Drawdown
 
-### Hyperparameters
-| Parameter     | Value  |
-|---------------|--------|
-| Timesteps     | 60     |
-| Features      | 9      |
-| LSTM units    | 128→64 |
-| Dense units   | 32→1   |
-| Dropout       | 0.30   |
-| Batch size    | 32     |
-| Max epochs    | 150    |
-| Early stop    | 15 ep  |
-| Forecast days | 30     |
-""")
-
-    st.divider()
-    st.markdown("""
 ### Tech stack
-`TensorFlow 2.x` · `PyPortfolioOpt` · `yfinance` · `Streamlit` · `Plotly` · `scikit-learn` · `Pandas` · `NumPy`
+`TensorFlow 2.x` · `PyPortfolioOpt` · `yfinance` · `Streamlit` · `Plotly`
 
 ### Authors
 **Saisha Verma** (18101012024) · **Ritisha Sood** (17201012024)
 
-> *This dashboard is for educational purposes only and does not constitute financial advice.*
-    """)
+> *Educational purposes only. Not financial advice.*
+        """)
