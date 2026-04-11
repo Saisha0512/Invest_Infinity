@@ -54,15 +54,25 @@ def optimise(
     mu  = lstm_blended_returns(forecast_results, price_matrix)
     cov = risk_models.CovarianceShrinkage(price_matrix).ledoit_wolf()
 
+    # BUG FIX 4: If ALL forecast returns are below the risk-free rate,
+    # max_sharpe() raises an error (no portfolio on the frontier above rfr).
+    # Auto-adjust rfr to just below the minimum blended return so optimisation
+    # can always proceed, and flag the adjustment in the returned dict.
+    rfr_was_adjusted = False
+    effective_rfr    = risk_free_rate
+    if float(mu.max()) <= risk_free_rate:
+        effective_rfr    = float(mu.min()) - 0.001
+        rfr_was_adjusted = True
+
     ef1 = EfficientFrontier(mu, cov, weight_bounds=(0, 1))
-    ef1.max_sharpe(risk_free_rate=risk_free_rate)
+    ef1.max_sharpe(risk_free_rate=effective_rfr)
     ms_w = ef1.clean_weights()
-    ms_p = ef1.portfolio_performance(verbose=False, risk_free_rate=risk_free_rate)
+    ms_p = ef1.portfolio_performance(verbose=False, risk_free_rate=effective_rfr)
 
     ef2 = EfficientFrontier(mu, cov, weight_bounds=(0, 1))
     ef2.min_volatility()
     mv_w = ef2.clean_weights()
-    mv_p = ef2.portfolio_performance(verbose=False, risk_free_rate=risk_free_rate)
+    mv_p = ef2.portfolio_performance(verbose=False, risk_free_rate=effective_rfr)
 
     n   = len(price_matrix.columns)
     eq_w = {c: 1.0 / n for c in price_matrix.columns}
@@ -70,7 +80,7 @@ def optimise(
     eq_r = (dr * pd.Series(eq_w)).sum(axis=1)
     eq_ann_ret = float(eq_r.mean() * TRADING_DAYS)
     eq_ann_vol = float(eq_r.std()  * np.sqrt(TRADING_DAYS))
-    eq_sharpe  = (eq_ann_ret - risk_free_rate) / (eq_ann_vol + 1e-10)
+    eq_sharpe  = (eq_ann_ret - effective_rfr) / (eq_ann_vol + 1e-10)
 
     w_s    = pd.Series(ms_w)
     port_r = (dr * w_s).sum(axis=1)
@@ -90,7 +100,7 @@ def optimise(
         try:
             ef_tmp = EfficientFrontier(mu, cov, weight_bounds=(0, 1))
             ef_tmp.efficient_return(target_return=float(tr))
-            p = ef_tmp.portfolio_performance(verbose=False, risk_free_rate=risk_free_rate)
+            p = ef_tmp.portfolio_performance(verbose=False, risk_free_rate=effective_rfr)
             ef_rets.append(p[0]); ef_vols.append(p[1])
         except Exception:
             pass
@@ -111,6 +121,9 @@ def optimise(
         "leftover":            float(leftover),
         "frontier_data":       {"volatilities": ef_vols, "returns": ef_rets},
         "correlation_matrix":  corr,
+        # BUG FIX 4: expose adjustment flag so app.py warning banner works
+        "rfr_was_adjusted":    rfr_was_adjusted,
+        "effective_rfr":       effective_rfr,
     }
 
 

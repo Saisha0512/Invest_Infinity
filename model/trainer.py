@@ -81,10 +81,19 @@ def train_model(
         raise ValueError(f"model_type must be one of {list(MODEL_BUILDERS)}")
 
     df = compute_features(train_df)
-    if len(df) < TIMESTEPS + 20:
+
+    # BUG FIX 1: Minimum rows must satisfy BOTH train_seq and val_seq having
+    # at least TIMESTEPS+1 rows each after the 80/20 split.
+    # train_seq needs: (TIMESTEPS+1) rows → val_split >= TIMESTEPS+1
+    # val_seq   needs: (TIMESTEPS+1) rows → len(scaled)-val_split >= TIMESTEPS+1
+    # With val_split = int(N*0.80): N*0.20 >= TIMESTEPS+1 → N >= (TIMESTEPS+1)/0.20
+    # Minimum safe total: ceil((TIMESTEPS+1) / 0.20) + a small buffer = 310
+    MIN_ROWS = int((TIMESTEPS + 1) / 0.20) + 10   # = 315
+    if len(df) < MIN_ROWS:
         raise ValueError(
-            f"{company}/{model_type}: only {len(df)} rows after warm-up "
-            f"(need > {TIMESTEPS + 20})."
+            f"{company}/{model_type}: only {len(df)} usable rows after indicator "
+            f"warm-up (need ≥ {MIN_ROWS} so both train and validation sequences "
+            f"are non-empty with TIMESTEPS={TIMESTEPS})."
         )
 
     # Scale ONLY on training data — no leakage
@@ -99,8 +108,14 @@ def train_model(
     X_train, y_train = build_sequences(train_seq, TIMESTEPS)
     X_val,   y_val   = build_sequences(val_seq,   TIMESTEPS)
 
+    # BUG FIX 1b: Guard against empty sequences (belt-and-suspenders)
     if len(X_train) == 0:
         raise ValueError(f"{company}/{model_type}: not enough training sequences.")
+    if len(X_val) == 0:
+        raise ValueError(
+            f"{company}/{model_type}: validation split produced 0 sequences. "
+            f"Increase training data period (currently {len(df)} rows)."
+        )
 
     model = MODEL_BUILDERS[model_type]()
     callbacks = [
@@ -175,35 +190,53 @@ def evaluate_model(
     # Compute features on full data (train+test combined for smooth context)
     full_df = pd.concat([train_df, test_df], ignore_index=True).sort_values("Date")
     full_df = compute_features(full_df)
+    # IMPORTANT: reset_index so positional iloc and .index are aligned
+    full_df = full_df.reset_index(drop=True)
 
-    # Find boundary index between train and test in combined df
-    test_start = pd.to_datetime(test_df["Date"].min())
-    boundary   = full_df[full_df["Date"] < test_start].index[-1] + 1
+    # BUG FIX 2: Compute boundary as a positional integer, not a label index.
+    # After reset_index, full_df.index is 0..N-1 so .index[-1] is positional,
+    # but if the mask is empty (test_start > last date) it raises IndexError.
+    # Use searchsorted on the sorted Date array instead — always safe.
+    test_start   = pd.to_datetime(test_df["Date"].min())
+    dates_sorted = pd.to_datetime(full_df["Date"].values)
+    boundary     = int(np.searchsorted(dates_sorted, test_start, side="left"))
+    # Ensure boundary is far enough in that we have TIMESTEPS context rows
+    boundary     = max(boundary, TIMESTEPS)
+
+    if boundary >= len(full_df):
+        raise ValueError(
+            f"{company}/{model_type}: test period starts after the end of "
+            f"available data. Check your train/test date split."
+        )
 
     # Scale using training scaler (no re-fit)
     full_scaled = scaler.transform(full_df[FEATURE_COLS].values)
 
-    # Predict each test-period point using a TRUE sliding window
+    # BUG FIX 3: Collect result row indices so dates, actuals, preds stay aligned.
     pred_scaled   = []
     actual_scaled = []
+    result_indices = []   # positional indices into full_df for date lookup
 
     for i in range(boundary, len(full_scaled)):
         start = i - TIMESTEPS
         if start < 0:
-            continue  # not enough context
+            continue  # not enough context (already guarded by max() above)
         window = full_scaled[start: i].reshape(1, TIMESTEPS, N_FEATURES)
         p = model.predict(window, verbose=0)[0, 0]
         pred_scaled.append(p)
         actual_scaled.append(full_scaled[i, TARGET_COL])
+        result_indices.append(i)
 
     actual_prices = _inv_close(np.array(actual_scaled), scaler).tolist()
     pred_prices   = _inv_close(np.array(pred_scaled),   scaler).tolist()
 
-    # Corresponding dates
-    result_dates = full_df["Date"].iloc[
-        [i for i in range(boundary, len(full_scaled))
-         if i - TIMESTEPS >= 0]
-    ].dt.strftime("%Y-%m-%d").tolist()
+    # BUG FIX 3b: Use the same result_indices list for dates — guaranteed aligned
+    result_dates = (
+        full_df["Date"]
+        .iloc[result_indices]
+        .dt.strftime("%Y-%m-%d")
+        .tolist()
+    )
 
     # Metrics (test data only — no leakage)
     act  = np.array(actual_prices)

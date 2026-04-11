@@ -109,286 +109,526 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# ── White background professional CSS ─────────────────────────
+# ══════════════════════════════════════════════════════════════
+# DESIGN SYSTEM — Stripe-inspired fintech dashboard
+# Palette: #F7F9FC bg · #FFFFFF cards · #2563EB blue accent
+#          #10B981 green · #F59E0B amber · #EF4444 red
+# ══════════════════════════════════════════════════════════════
 st.markdown("""
 <style>
-/* ── Global white background, black text ── */
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
+
+/* ─── Root tokens ─────────────────────────────────────────── */
+:root {
+    --bg:        #F7F9FC;
+    --surface:   #FFFFFF;
+    --border:    #E5E7EB;
+    --border-2:  #D1D5DB;
+    --txt-1:     #111827;
+    --txt-2:     #374151;
+    --txt-3:     #6B7280;
+    --txt-4:     #9CA3AF;
+    --blue:      #2563EB;
+    --blue-light:#EFF6FF;
+    --blue-mid:  #BFDBFE;
+    --green:     #10B981;
+    --green-lt:  #ECFDF5;
+    --amber:     #F59E0B;
+    --amber-lt:  #FFFBEB;
+    --red:       #EF4444;
+    --red-lt:    #FEF2F2;
+    --purple:    #8B5CF6;
+    --purple-lt: #F5F3FF;
+    --radius:    14px;
+    --radius-sm: 8px;
+    --shadow:    0 1px 3px rgba(0,0,0,.06), 0 4px 16px rgba(0,0,0,.05);
+    --shadow-md: 0 4px 20px rgba(37,99,235,.12);
+}
+
+/* ─── Global reset ────────────────────────────────────────── */
 html, body, [data-testid="stApp"] {
-    background-color: #ffffff !important;
-    color: #111111 !important;
+    background: var(--bg) !important;
+    color: var(--txt-1) !important;
+    font-family: 'DM Sans', sans-serif !important;
 }
-[data-testid="stHeader"] { background-color: #ffffff !important; }
-[data-testid="stSidebar"] { display: none; }
+[data-testid="stHeader"]       { background: var(--bg) !important; }
+[data-testid="stSidebar"]      { display: none !important; }
+#MainMenu, footer, header      { visibility: hidden !important; }
+[data-testid="stAppViewContainer"] { padding-top: 0 !important; }
+[data-testid="block-container"]    { padding: 2rem 2.5rem !important; }
 
-/* ── All standard text elements black on white ── */
-p, span, div, label, h1, h2, h3, h4, h5, h6, li, td, th, caption {
-    color: #111111 !important;
+/* ─── Universal text → dark on light ─────────────────────── */
+p, span, div, label, h1, h2, h3, h4, h5, h6,
+li, td, th, caption, strong, em, code, small {
+    color: var(--txt-1) !important;
+    font-family: 'DM Sans', sans-serif !important;
 }
+code { font-family: 'DM Mono', monospace !important; }
 
-/* ── Streamlit native text widgets ── */
-[data-testid="stMarkdownContainer"] p,
-[data-testid="stMarkdownContainer"] li,
-[data-testid="stMarkdownContainer"] span,
-[data-testid="stMarkdownContainer"] strong,
-[data-testid="stMarkdownContainer"] em,
-[data-testid="stMarkdownContainer"] code,
-[data-testid="stMarkdownContainer"] h1,
-[data-testid="stMarkdownContainer"] h2,
-[data-testid="stMarkdownContainer"] h3,
-[data-testid="stMarkdownContainer"] h4 {
-    color: #111111 !important;
-}
-
-/* ── Metric widget ── */
-[data-testid="stMetricValue"],
-[data-testid="stMetricLabel"],
-[data-testid="stMetricDelta"] {
-    color: #111111 !important;
-}
-
-/* ── Dataframe / table text ── */
-[data-testid="stDataFrame"] td,
-[data-testid="stDataFrame"] th,
-.stDataFrame td, .stDataFrame th {
-    color: #111111 !important;
-}
-
-/* ── Caption / info / warning text ── */
+[data-testid="stMarkdownContainer"] * { color: var(--txt-1) !important; }
+[data-testid="stMetricValue"]   { color: var(--txt-1) !important; font-weight:700 !important; }
+[data-testid="stMetricLabel"]   { color: var(--txt-3) !important; font-size:12px !important; }
 [data-testid="stCaptionContainer"],
-[data-testid="stCaption"],
-small { color: #555555 !important; }
-
-/* ── Radio buttons ── */
+[data-testid="stCaption"], small { color: var(--txt-3) !important; }
+[data-testid="stAlert"] p,
+[data-testid="stAlert"] span    { color: var(--txt-1) !important; }
+[data-testid="stProgress"] p    { color: var(--txt-2) !important; }
 [data-testid="stRadio"] label,
 [data-testid="stRadio"] span,
-[data-testid="stRadio"] div { color: #111111 !important; }
-
-/* ── Selectbox / multiselect text ── */
+[data-testid="stRadio"] div     { color: var(--txt-1) !important; }
 [data-testid="stSelectbox"] label,
 [data-testid="stMultiSelect"] label,
 [data-testid="stSelectbox"] span,
-[data-testid="stMultiSelect"] span { color: #111111 !important; }
-
-/* ── Slider label + value ── */
+[data-testid="stMultiSelect"] span { color: var(--txt-1) !important; }
 [data-testid="stSlider"] label,
 [data-testid="stSlider"] span,
-[data-testid="stSlider"] p { color: #111111 !important; }
-
-/* ── Number input ── */
+[data-testid="stSlider"] p       { color: var(--txt-1) !important; }
 [data-testid="stNumberInput"] label,
-[data-testid="stNumberInput"] span { color: #111111 !important; }
-
-/* ── Expander header ── */
+[data-testid="stNumberInput"] span { color: var(--txt-1) !important; }
 [data-testid="stExpander"] summary,
 [data-testid="stExpander"] summary p,
-[data-testid="stExpander"] summary span { color: #111111 !important; }
+[data-testid="stExpander"] summary span { color: var(--txt-1) !important; }
+[data-testid="stDataFrame"] td,
+[data-testid="stDataFrame"] th   { color: var(--txt-1) !important; }
 
-/* ── Info / success / warning / error boxes ── */
-[data-testid="stAlert"] p,
-[data-testid="stAlert"] span { color: #111111 !important; }
-
-/* ── Progress bar label ── */
-[data-testid="stProgress"] p { color: #111111 !important; }
-
-/* ── Top nav bar (dark bg → white text) ── */
-.nav-bar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    background: #111111;
-    padding: 0 32px;
-    height: 56px;
-    position: sticky;
-    top: 0;
-    z-index: 999;
-    border-radius: 0 0 12px 12px;
-}
-.nav-logo {
-    font-size: 20px;
-    font-weight: 700;
-    color: #ffffff !important;
-    letter-spacing: .03em;
-}
-.nav-links { display: flex; gap: 6px; }
-.nav-btn {
-    background: transparent;
-    color: #cccccc !important;
-    border: none;
-    padding: 6px 18px;
-    font-size: 14px;
-    cursor: pointer;
-    border-radius: 6px;
-    transition: background .15s;
-}
-.nav-btn:hover, .nav-btn.active {
-    background: #333333;
-    color: #ffffff !important;
-}
-.nav-login {
-    background: #ffffff;
-    color: #111111 !important;
-    border: none;
-    padding: 6px 18px;
-    font-size: 13px;
-    border-radius: 6px;
-    font-weight: 600;
-    cursor: pointer;
-}
-
-/* ── Streamlit tab override (dark bg → white/grey text) ── */
+/* ─── Tab bar — gorgeous pill-style ──────────────────────── */
 [data-testid="stTabs"] [role="tablist"] {
-    background: #111111 !important;
-    border-radius: 10px !important;
-    padding: 4px 8px !important;
-    gap: 4px !important;
+    background: var(--surface) !important;
+    border: 1.5px solid var(--border) !important;
+    border-radius: 50px !important;
+    padding: 5px 6px !important;
+    gap: 2px !important;
     justify-content: space-evenly !important;
+    box-shadow: var(--shadow) !important;
+    margin-bottom: 8px !important;
 }
 [data-testid="stTabs"] button[role="tab"] {
-    color: #aaaaaa !important;
+    color: var(--txt-3) !important;
     background: transparent !important;
     border: none !important;
-    border-radius: 6px !important;
-    font-size: 14px !important;
-    padding: 8px 20px !important;
+    border-radius: 50px !important;
+    font-size: 13.5px !important;
     font-weight: 500 !important;
+    padding: 8px 22px !important;
     flex: 1 !important;
     min-width: 0 !important;
+    transition: all 0.2s ease !important;
+    letter-spacing: 0.01em !important;
 }
 [data-testid="stTabs"] button[role="tab"] p,
 [data-testid="stTabs"] button[role="tab"] span {
     color: inherit !important;
+    font-size: inherit !important;
+}
+[data-testid="stTabs"] button[role="tab"]:hover {
+    background: var(--blue-light) !important;
+    color: var(--blue) !important;
 }
 [data-testid="stTabs"] button[role="tab"][aria-selected="true"] {
-    background: #333333 !important;
+    background: var(--blue) !important;
+    color: #ffffff !important;
+    box-shadow: 0 2px 8px rgba(37,99,235,0.35) !important;
+    font-weight: 600 !important;
+}
+[data-testid="stTabs"] button[role="tab"][aria-selected="true"] p,
+[data-testid="stTabs"] button[role="tab"][aria-selected="true"] span {
     color: #ffffff !important;
 }
 [data-testid="stTabs"] [data-testid="stTabContent"] {
-    padding-top: 24px !important;
+    padding-top: 20px !important;
 }
 
-/* ── Black action buttons (dark bg → white text) ── */
+/* ─── Buttons ─────────────────────────────────────────────── */
 div.stButton > button {
-    background-color: #111111 !important;
+    background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%) !important;
     color: #ffffff !important;
     border: none !important;
-    border-radius: 8px !important;
+    border-radius: 10px !important;
     font-size: 14px !important;
     font-weight: 600 !important;
-    padding: 10px 24px !important;
+    padding: 11px 24px !important;
     width: 100% !important;
     letter-spacing: .02em !important;
-    transition: background .15s !important;
+    transition: all 0.2s ease !important;
+    box-shadow: 0 2px 8px rgba(37,99,235,0.30) !important;
+    font-family: 'DM Sans', sans-serif !important;
 }
-div.stButton > button:hover { background-color: #333333 !important; }
-div.stButton > button[kind="primary"] { background-color: #111111 !important; }
+div.stButton > button:hover {
+    background: linear-gradient(135deg, #1D4ED8 0%, #1E40AF 100%) !important;
+    box-shadow: 0 4px 16px rgba(37,99,235,0.45) !important;
+    transform: translateY(-1px) !important;
+}
+div.stButton > button:active { transform: translateY(0) !important; }
 div.stButton > button p,
 div.stButton > button span { color: #ffffff !important; }
 
-/* ── Metric cards (light bg → black text) ── */
-.metric-card {
-    background: #f5f5f5;
-    border: 1px solid #e0e0e0;
-    border-radius: 10px;
-    padding: 16px 20px;
-    text-align: center;
+/* ─── Inputs ──────────────────────────────────────────────── */
+[data-testid="stSelectbox"] > div > div,
+[data-testid="stMultiSelect"] > div > div {
+    background: var(--surface) !important;
+    border: 1.5px solid var(--border-2) !important;
+    border-radius: var(--radius-sm) !important;
+    color: var(--txt-1) !important;
+    transition: border-color 0.2s !important;
 }
-.metric-card .mc-label { font-size: 11px; color: #666666 !important;
-    text-transform: uppercase; letter-spacing: .06em; margin-bottom: 4px; }
-.metric-card .mc-value { font-size: 22px; font-weight: 700; color: #111111 !important; }
-.metric-card.good .mc-value { color: #1a7a4a !important; }
-.metric-card.warn .mc-value { color: #b34000 !important; }
-.metric-card.bad  .mc-value { color: #c0392b !important; }
+[data-testid="stSelectbox"] > div > div:focus-within,
+[data-testid="stMultiSelect"] > div > div:focus-within {
+    border-color: var(--blue) !important;
+    box-shadow: 0 0 0 3px rgba(37,99,235,0.12) !important;
+}
+[data-baseweb="select"] span,
+[data-baseweb="select"] [data-testid="stText"] { color: var(--txt-1) !important; }
+[data-testid="stMultiSelect"] [data-baseweb="tag"] {
+    background: var(--blue) !important;
+    border-radius: 6px !important;
+}
+[data-testid="stMultiSelect"] [data-baseweb="tag"] span { color: #fff !important; }
 
-/* ── Recommended badge (green bg → white text) ── */
-.rec-badge {
-    display: inline-block;
-    background: #1a7a4a;
-    color: #ffffff !important;
-    font-size: 11px;
+/* Slider accent */
+[data-testid="stSlider"] [data-baseweb="slider"] [role="slider"] {
+    background: var(--blue) !important;
+    border-color: var(--blue) !important;
+}
+
+/* ─── Hero header ─────────────────────────────────────────── */
+.ii-hero {
+    background: linear-gradient(135deg, #1E3A8A 0%, #2563EB 50%, #0EA5E9 100%);
+    border-radius: var(--radius);
+    padding: 32px 36px;
+    margin-bottom: 24px;
+    position: relative;
+    overflow: hidden;
+}
+.ii-hero::before {
+    content: "";
+    position: absolute;
+    top: -40px; right: -40px;
+    width: 200px; height: 200px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 50%;
+}
+.ii-hero::after {
+    content: "";
+    position: absolute;
+    bottom: -60px; right: 80px;
+    width: 140px; height: 140px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 50%;
+}
+.ii-hero-title {
+    font-size: 30px;
     font-weight: 700;
-    letter-spacing: .06em;
-    border-radius: 4px;
-    padding: 2px 8px;
+    color: #ffffff !important;
+    margin: 0 0 4px 0;
+    letter-spacing: -0.02em;
+    font-family: 'DM Sans', sans-serif !important;
+}
+.ii-hero-sub {
+    font-size: 15px;
+    color: rgba(255,255,255,0.75) !important;
+    margin: 0;
+    font-family: 'DM Sans', sans-serif !important;
+}
+.ii-hero-pills {
+    display: flex;
+    gap: 8px;
+    margin-top: 18px;
+    flex-wrap: wrap;
+}
+.ii-pill {
+    background: rgba(255,255,255,0.15);
+    color: #ffffff !important;
+    border: 1px solid rgba(255,255,255,0.25);
+    border-radius: 20px;
+    padding: 4px 14px;
+    font-size: 12px;
+    font-weight: 500;
+    backdrop-filter: blur(4px);
+    font-family: 'DM Sans', sans-serif !important;
+}
+
+/* ─── Card ────────────────────────────────────────────────── */
+.ii-card {
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    margin-bottom: 20px;
+    box-shadow: var(--shadow);
+}
+.ii-card-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--txt-2) !important;
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    margin: 0 0 16px 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'DM Sans', sans-serif !important;
+}
+.ii-card-title::before {
+    content: "";
+    display: inline-block;
+    width: 4px;
+    height: 16px;
+    background: var(--blue);
+    border-radius: 2px;
+}
+
+/* ─── Section header ──────────────────────────────────────── */
+.sec-h {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--txt-1) !important;
+    border-bottom: 2px solid var(--blue-light);
+    padding-bottom: 8px;
+    margin: 24px 0 16px 0;
+    font-family: 'DM Sans', sans-serif !important;
+}
+.sec-h::after {
+    content: "";
+    display: block;
+    width: 40px;
+    height: 3px;
+    background: var(--blue);
+    border-radius: 2px;
+    margin-top: 6px;
+}
+
+/* ─── KPI metric card ─────────────────────────────────────── */
+.metric-card {
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 18px 16px;
+    text-align: center;
+    transition: box-shadow 0.2s;
+    box-shadow: var(--shadow);
+}
+.metric-card:hover { box-shadow: var(--shadow-md); }
+.metric-card .mc-label {
+    font-size: 11px;
+    color: var(--txt-3) !important;
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    margin-bottom: 6px;
+    font-family: 'DM Sans', sans-serif !important;
+}
+.metric-card .mc-value {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--txt-1) !important;
+    font-family: 'DM Sans', sans-serif !important;
+}
+.metric-card.good  { border-top: 3px solid var(--green); }
+.metric-card.good  .mc-value { color: var(--green) !important; }
+.metric-card.warn  { border-top: 3px solid var(--amber); }
+.metric-card.warn  .mc-value { color: var(--amber) !important; }
+.metric-card.bad   { border-top: 3px solid var(--red); }
+.metric-card.bad   .mc-value { color: var(--red) !important; }
+
+/* ─── Badges ──────────────────────────────────────────────── */
+.rec-badge {
+    display: inline-flex;
+    align-items: center;
+    background: var(--green-lt);
+    color: var(--green) !important;
+    border: 1px solid #A7F3D0;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .07em;
+    border-radius: 20px;
+    padding: 2px 10px;
     margin-left: 8px;
     vertical-align: middle;
     text-transform: uppercase;
+    font-family: 'DM Sans', sans-serif !important;
 }
 .better-badge {
-    display: inline-block;
-    background: #b34000;
-    color: #ffffff !important;
-    font-size: 11px;
-    border-radius: 4px;
-    padding: 2px 8px;
+    display: inline-flex;
+    align-items: center;
+    background: var(--amber-lt);
+    color: var(--amber) !important;
+    border: 1px solid #FDE68A;
+    font-size: 10px;
+    border-radius: 20px;
+    padding: 2px 10px;
     margin-left: 8px;
     vertical-align: middle;
+    font-family: 'DM Sans', sans-serif !important;
 }
-
-/* ── Section header (white bg → black text) ── */
-.sec-h {
-    font-size: 16px;
-    font-weight: 700;
-    color: #111111 !important;
-    border-bottom: 2px solid #111111;
-    padding-bottom: 6px;
-    margin: 24px 0 14px 0;
-}
-
-/* ── Right panel (light bg → black text) ── */
-.right-panel {
-    background: #f9f9f9;
-    border: 1px solid #e0e0e0;
-    border-radius: 12px;
-    padding: 24px;
-    color: #111111 !important;
-}
-.right-panel p, .right-panel span, .right-panel label,
-.right-panel h1, .right-panel h2, .right-panel h3,
-.right-panel h4, .right-panel div { color: #111111 !important; }
-
-/* ── Stock badge (dark bg → white text) ── */
 .sbadge {
     display: inline-block;
-    background: #111111;
-    color: #ffffff !important;
+    background: var(--blue);
+    color: #fff !important;
     border-radius: 20px;
     padding: 3px 12px;
     font-size: 12px;
     margin: 2px 4px 2px 0;
+    font-family: 'DM Sans', sans-serif !important;
 }
 
-/* ── Section divider ── */
-hr { border: none; border-top: 1px solid #e5e5e5; margin: 20px 0; }
-
-/* ── Remove Streamlit watermark ── */
-#MainMenu, footer { visibility: hidden; }
-
-/* ── Input / select styling ── */
-[data-testid="stSelectbox"] > div > div,
-[data-testid="stMultiSelect"] > div > div {
-    background: #ffffff !important;
-    border: 1px solid #cccccc !important;
-    border-radius: 6px !important;
-    color: #111111 !important;
+/* ─── Step cards (How it works) ───────────────────────────── */
+.step-card {
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 16px 18px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    box-shadow: var(--shadow);
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+.step-card:hover {
+    border-color: var(--blue-mid);
+    box-shadow: var(--shadow-md);
+}
+.step-num {
+    min-width: 32px;
+    height: 32px;
+    background: var(--blue);
+    color: #fff !important;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 700;
+    flex-shrink: 0;
+    font-family: 'DM Sans', sans-serif !important;
+}
+.step-text strong { color: var(--txt-1) !important; font-weight: 600 !important; }
+.step-text p {
+    color: var(--txt-3) !important;
+    font-size: 13px;
+    margin: 2px 0 0 0;
+    font-family: 'DM Sans', sans-serif !important;
 }
 
-/* ── Dropdown options text ── */
-[data-testid="stSelectbox"] option,
-[data-baseweb="select"] [data-testid="stText"],
-[data-baseweb="select"] span { color: #111111 !important; }
+/* ─── Control panel card ──────────────────────────────────── */
+.right-panel {
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    box-shadow: var(--shadow);
+}
+.right-panel p, .right-panel span, .right-panel label,
+.right-panel h1, .right-panel h2, .right-panel h3,
+.right-panel h4, .right-panel div { color: var(--txt-1) !important; }
 
-/* ── Multiselect tags ── */
-[data-testid="stMultiSelect"] [data-baseweb="tag"] {
-    background-color: #111111 !important;
+/* ─── Stat pill row ───────────────────────────────────────── */
+.stat-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--blue-light);
+    color: var(--blue) !important;
+    border-radius: 20px;
+    padding: 5px 14px;
+    font-size: 12.5px;
+    font-weight: 600;
+    margin: 3px 4px 3px 0;
+    font-family: 'DM Sans', sans-serif !important;
 }
-[data-testid="stMultiSelect"] [data-baseweb="tag"] span {
-    color: #ffffff !important;
+.stat-pill.green { background: var(--green-lt); color: var(--green) !important; }
+.stat-pill.amber { background: var(--amber-lt); color: var(--amber) !important; }
+
+/* ─── Dividers ────────────────────────────────────────────── */
+hr { border: none; border-top: 1.5px solid var(--border); margin: 20px 0; }
+.ii-divider {
+    height: 1.5px;
+    background: linear-gradient(90deg, var(--blue) 0%, var(--border) 100%);
+    border: none;
+    margin: 20px 0;
+    border-radius: 2px;
 }
+
+/* ─── Expanders ───────────────────────────────────────────── */
+[data-testid="stExpander"] {
+    background: var(--surface) !important;
+    border: 1.5px solid var(--border) !important;
+    border-radius: var(--radius) !important;
+    margin-bottom: 12px !important;
+    box-shadow: var(--shadow) !important;
+    overflow: hidden !important;
+}
+[data-testid="stExpander"] summary {
+    background: var(--surface) !important;
+    padding: 14px 20px !important;
+    font-weight: 600 !important;
+    font-size: 14px !important;
+    color: var(--txt-1) !important;
+}
+[data-testid="stExpander"] summary:hover {
+    background: var(--bg) !important;
+}
+
+/* ─── Table / DataFrame ───────────────────────────────────── */
+[data-testid="stDataFrame"] {
+    border: 1.5px solid var(--border) !important;
+    border-radius: var(--radius-sm) !important;
+    overflow: hidden !important;
+}
+
+/* ─── About page ──────────────────────────────────────────── */
+.about-card {
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius);
+    padding: 28px;
+    box-shadow: var(--shadow);
+    height: 100%;
+}
+.about-card h3 {
+    color: var(--blue) !important;
+    font-size: 16px !important;
+    font-weight: 700 !important;
+    margin-bottom: 16px !important;
+    border-bottom: 2px solid var(--blue-light) !important;
+    padding-bottom: 8px !important;
+}
+.author-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: linear-gradient(135deg, var(--blue-light), var(--purple-lt));
+    border: 1px solid var(--blue-mid);
+    border-radius: 50px;
+    padding: 8px 18px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--blue) !important;
+    margin: 4px 6px 4px 0;
+    font-family: 'DM Sans', sans-serif !important;
+}
+.disclaimer {
+    background: var(--amber-lt);
+    border: 1px solid #FDE68A;
+    border-left: 4px solid var(--amber);
+    border-radius: var(--radius-sm);
+    padding: 12px 16px;
+    font-size: 13px;
+    color: #92400E !important;
+    margin-top: 20px;
+    font-family: 'DM Sans', sans-serif !important;
+}
+
+/* ─── Scrollbar ───────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--txt-4); }
 </style>
 """, unsafe_allow_html=True)
 
 # ──────────────────────────────────────────────────────────────
 # Session state
+
 # ──────────────────────────────────────────────────────────────
 _defaults = {
     "language":         "English",
@@ -431,9 +671,14 @@ def ts_to_str(ts) -> str:
 
 
 def metric_card(label, value, kind=""):
+    icon_map = {
+        "Sharpe Ratio": "◆", "Annual Return": "↑", "Annual Volatility": "~",
+        "VaR 95%": "▼", "CVaR 95%": "▼▼", "Max Drawdown": "↓",
+    }
+    icon = icon_map.get(label, "")
     return (
         f'<div class="metric-card {kind}">'
-        f'<div class="mc-label">{label}</div>'
+        f'<div class="mc-label">{icon} {label}</div>'
         f'<div class="mc-value">{value}</div>'
         f'</div>'
     )
@@ -461,17 +706,22 @@ tabs = st.tabs(tab_labels)
 # TAB 0 — HOME
 # ════════════════════════════════════════════════════════════════
 with tabs[0]:
-    # ── Header row ──
-    hdr_left, hdr_right = st.columns([2, 1])
-    with hdr_left:
-        st.markdown(
-            "<h1 style='font-size:32px;font-weight:800;color:#111;margin:0'>"
-            "Invest Infinity</h1>"
-            "<p style='color:#555;font-size:15px;margin:4px 0 0 0'>"
-            "AI-powered portfolio optimization using LSTM &amp; GRU</p>",
-            unsafe_allow_html=True
-        )
-    with hdr_right:
+    # ── Hero banner ──────────────────────────────────────────────
+    hdr_l, hdr_r = st.columns([3, 1])
+    with hdr_l:
+        st.markdown("""
+        <div class="ii-hero">
+            <p class="ii-hero-title">Invest Infinity</p>
+            <p class="ii-hero-sub">AI-powered portfolio optimization &amp; forecasting using LSTM &amp; GRU neural networks</p>
+            <div class="ii-hero-pills">
+                <span class="ii-pill">LSTM &amp; GRU Models</span>
+                <span class="ii-pill">Live Yahoo Finance Data</span>
+                <span class="ii-pill">Portfolio Optimization</span>
+                <span class="ii-pill">Risk Analytics</span>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+    with hdr_r:
         lang = st.selectbox(
             "Language",
             list(TRANSLATIONS.keys()),
@@ -482,7 +732,7 @@ with tabs[0]:
         )
         st.session_state.language = lang
         if st.session_state.logged_in:
-            st.success(f"Logged in: {st.session_state.username}")
+            st.success(f"Logged in as {st.session_state.username}")
         else:
             if st.button("Login / Sign Up", key="login_top"):
                 st.session_state.show_login = True
@@ -504,39 +754,45 @@ with tabs[0]:
                         st.session_state.show_login = False
                         st.success(f"Welcome, {uname}!")
 
-    st.markdown("<hr>", unsafe_allow_html=True)
-
     # ── Two-column layout: How it works (left) | Control panel (right) ──
-    left_col, right_col = st.columns([1.2, 1])
+    left_col, right_col = st.columns([1.25, 1])
 
     with left_col:
         st.markdown('<div class="sec-h">How it works</div>', unsafe_allow_html=True)
-        st.markdown("""
-**Step 1 — Select stocks** from the panel on the right (5–10 recommended).  
-**Step 2 — Fetch Data** — live OHLCV prices downloaded from Yahoo Finance.  
-**Step 3 — Train Models** — one LSTM and one GRU trained per company,  
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-using data up to the training cutoff date.  
-**Step 4 — Model Selection tab** — compare LSTM vs GRU metrics for each  
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-company, pick the best (or accept the recommendation).  
-**Step 5 — Run Analysis** — forecast + portfolio optimisation using your  
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-chosen models.
-        """)
+
+        steps = [
+            ("1", "Select Stocks", "Choose 5–10 stocks from the control panel. Trending picks are highlighted."),
+            ("2", "Fetch Data", "Live OHLCV prices downloaded from Yahoo Finance, auto-adjusted for splits."),
+            ("3", "Train Models", "One LSTM and one GRU trained per company using strict time-based splits."),
+            ("4", "Model Selection", "Compare LSTM vs GRU metrics. Accept the recommendation or override."),
+            ("5", "Run Analysis", "Forecast future prices and optimise portfolio allocation."),
+        ]
+        for num, title, desc in steps:
+            st.markdown(f"""
+            <div class="step-card">
+                <div class="step-num">{num}</div>
+                <div class="step-text">
+                    <strong>{title}</strong>
+                    <p>{desc}</p>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
 
         if st.session_state.stock_data is not None:
             df = st.session_state.stock_data
-            st.markdown('<div class="sec-h">Data loaded</div>', unsafe_allow_html=True)
+            st.markdown('<div class="sec-h">Data Loaded</div>', unsafe_allow_html=True)
             src = st.session_state.data_source
             tc  = ts_to_str(st.session_state.train_cut)
-            ts  = ts_to_str(st.session_state.test_start)
-            st.markdown(
-                f"Source: **{src}** &nbsp;|&nbsp; "
-                f"{len(df):,} rows &nbsp;|&nbsp; "
-                f"{df['Date'].min().date()} → {df['Date'].max().date()}  \n"
-                f"Train cutoff: **{tc}** &nbsp;|&nbsp; Test from: **{ts}**"
-            )
+            ts_s  = ts_to_str(st.session_state.test_start)
+            # Stat pills
+            st.markdown(f"""
+            <div style="margin-bottom:12px">
+                <span class="stat-pill">{src}</span>
+                <span class="stat-pill">{len(df):,} rows</span>
+                <span class="stat-pill green">Train → {tc}</span>
+                <span class="stat-pill amber">Test from {ts_s}</span>
+            </div>
+            """, unsafe_allow_html=True)
             st.dataframe(
                 df.sort_values(["Company","Date"]).tail(20),
                 use_container_width=True, hide_index=True
@@ -544,7 +800,7 @@ chosen models.
 
     with right_col:
         st.markdown('<div class="right-panel">', unsafe_allow_html=True)
-        st.markdown('<div class="sec-h">Control Panel</div>', unsafe_allow_html=True)
+        st.markdown('<div class="ii-card-title">Control Panel</div>', unsafe_allow_html=True)
 
         # Stock picker — trending first with tag
         label_to_ticker = {}
@@ -760,11 +1016,12 @@ chosen models.
 # TAB 1 — MODEL SELECTION
 # ════════════════════════════════════════════════════════════════
 with tabs[1]:
-    st.markdown('<h2 style="color:#111">Model Selection</h2>', unsafe_allow_html=True)
-    st.markdown(
-        "Review LSTM vs GRU performance for each company. "
-        "The dashboard recommends the better model, but you can override."
-    )
+    st.markdown("""
+    <div style="margin-bottom:20px">
+        <h2 style="font-size:24px;font-weight:700;color:#111827;margin:0 0 6px 0">Model Selection</h2>
+        <p style="color:#6B7280;margin:0;font-size:14px">Compare LSTM vs GRU performance for each stock. Accept the recommendation or choose manually.</p>
+    </div>
+    """, unsafe_allow_html=True)
 
     er = st.session_state.eval_results
     if not er:
@@ -804,7 +1061,7 @@ with tabs[1]:
                             if mtype == rec else ""
                         )
                         st.markdown(
-                            f"<h4 style='color:#111;margin:0'>{mtype} {rec_html}</h4>",
+                            f"<div style='font-size:16px;font-weight:700;color:#111827;margin:0 0 10px 0'>{mtype} {rec_html}</div>",
                             unsafe_allow_html=True
                         )
                         if e is None:
@@ -827,18 +1084,18 @@ with tabs[1]:
                             x=dates_str,
                             y=e["actual_prices"],
                             name="Actual Prices",
-                            line=dict(color="#1565C0", width=1.8)
+                            line=dict(color="#2563EB", width=2)
                         ))
                         fig.add_trace(go.Scatter(
                             x=dates_str,
                             y=e["predicted_prices"],
                             name="Predicted Prices",
-                            line=dict(color="#C62828", width=1.8, dash="dot")
+                            line=dict(color="#EF4444", width=1.8, dash="dot")
                         ))
                         fig.update_layout(
                             title=dict(
                                 text=f"{company} — {mtype} Stock Price Prediction",
-                                font=dict(size=13, color="#111")
+                                font=dict(size=13, color="#111827")
                             ),
                             template="plotly_white",
                             height=300,
@@ -846,9 +1103,9 @@ with tabs[1]:
                             xaxis_title="Date",
                             yaxis_title="Stock Price ($)",
                             legend=dict(orientation="h", y=-0.3),
-                            paper_bgcolor="#ffffff",
-                            plot_bgcolor="#ffffff",
-                            font=dict(color="#111")
+                            paper_bgcolor="#FFFFFF",
+                            plot_bgcolor="#F7F9FC",
+                            font=dict(color="#111827", family="DM Sans, sans-serif")
                         )
                         st.plotly_chart(fig, use_container_width=True)
 
@@ -874,8 +1131,12 @@ with tabs[1]:
 # TAB 2 — FORECAST
 # ════════════════════════════════════════════════════════════════
 with tabs[2]:
-    st.markdown('<h2 style="color:#111">Future Price Forecast</h2>',
-                unsafe_allow_html=True)
+    st.markdown("""
+    <div style="margin-bottom:20px">
+        <h2 style="font-size:24px;font-weight:700;color:#111827;margin:0 0 6px 0">Future Price Forecast</h2>
+        <p style="color:#6B7280;margin:0;font-size:14px">AI-generated price forecasts with confidence bands for each selected stock.</p>
+    </div>
+    """, unsafe_allow_html=True)
 
     fr = st.session_state.forecast_results
     er = st.session_state.eval_results
@@ -913,13 +1174,13 @@ with tabs[2]:
                         x=test_dates_str,
                         y=e["actual_prices"],
                         name="Actual (test period)",
-                        line=dict(color="#1565C0", width=1.8)
+                        line=dict(color="#2563EB", width=2)
                     ))
                     fig.add_trace(go.Scatter(
                         x=test_dates_str,
                         y=e["predicted_prices"],
                         name=f"{mtype} on test data",
-                        line=dict(color="#C62828", width=1.5, dash="dot")
+                        line=dict(color="#EF4444", width=1.5, dash="dot")
                     ))
 
                 # Forecast band ±2%
@@ -928,7 +1189,7 @@ with tabs[2]:
                     y=[p * 1.02 for p in res["forecast_prices"]] +
                       [p * 0.98 for p in res["forecast_prices"][::-1]],
                     fill="toself",
-                    fillcolor="rgba(39,174,96,0.10)",
+                    fillcolor="rgba(16,185,129,0.12)",
                     line=dict(color="rgba(0,0,0,0)"),
                     name="±2% confidence band"
                 ))
@@ -936,7 +1197,7 @@ with tabs[2]:
                     x=forecast_dates,
                     y=res["forecast_prices"],
                     name="Future forecast",
-                    line=dict(color="#27ae60", width=2.2)
+                    line=dict(color="#10B981", width=2.2)
                 ))
 
                 # FIX: add_vline crashes across Plotly versions when x is a
@@ -948,7 +1209,7 @@ with tabs[2]:
                         x0=forecast_dates[0], x1=forecast_dates[0],
                         y0=0, y1=1,
                         xref="x", yref="paper",
-                        line=dict(dash="dash", color="rgba(0,0,0,0.30)", width=1.5)
+                        line=dict(dash="dash", color="#2563EB", width=1.5)
                     )
                     fig.add_annotation(
                         x=forecast_dates[0], y=1,
@@ -957,7 +1218,7 @@ with tabs[2]:
                         showarrow=False,
                         xanchor="left",
                         yanchor="bottom",
-                        font=dict(size=11, color="#111111"),
+                        font=dict(size=11, color="#2563EB"),
                         bgcolor="rgba(255,255,255,0.7)",
                         borderpad=3
                     )
@@ -965,7 +1226,7 @@ with tabs[2]:
                 fig.update_layout(
                     title=dict(
                         text=f"{company} Stock Price Prediction",
-                        font=dict(size=14, color="#111")
+                        font=dict(size=14, color="#111827")
                     ),
                     template="plotly_white",
                     height=400,
@@ -973,9 +1234,9 @@ with tabs[2]:
                     xaxis_title="Date",
                     yaxis_title="Stock Price ($)",
                     legend=dict(orientation="h", y=-0.25),
-                    paper_bgcolor="#ffffff",
-                    plot_bgcolor="#ffffff",
-                    font=dict(color="#111")
+                    paper_bgcolor="#FFFFFF",
+                    plot_bgcolor="#F7F9FC",
+                    font=dict(color="#111827", family="DM Sans, sans-serif")
                 )
                 st.plotly_chart(fig, use_container_width=True)
 
@@ -984,8 +1245,12 @@ with tabs[2]:
 # TAB 3 — PORTFOLIO
 # ════════════════════════════════════════════════════════════════
 with tabs[3]:
-    st.markdown('<h2 style="color:#111">Portfolio Optimisation</h2>',
-                unsafe_allow_html=True)
+    st.markdown("""
+    <div style="margin-bottom:20px">
+        <h2 style="font-size:24px;font-weight:700;color:#111827;margin:0 0 6px 0">Portfolio Optimisation</h2>
+        <p style="color:#6B7280;margin:0;font-size:14px">Efficient frontier optimisation with Max Sharpe, Min Volatility and Equal Weight strategies.</p>
+    </div>
+    """, unsafe_allow_html=True)
 
     opt = st.session_state.opt_results
     if opt is None:
@@ -1037,7 +1302,7 @@ with tabs[3]:
             amounts = [v * st.session_state.investment for v in values]
             fig_d   = go.Figure(go.Pie(
                 labels=labels, values=values, hole=0.55,
-                marker=dict(colors=px.colors.qualitative.Dark2[:len(labels)]),
+                marker=dict(colors=["#2563EB","#10B981","#F59E0B","#8B5CF6","#EF4444","#0EA5E9","#F97316","#EC4899"][:len(labels)], line=dict(color='#FFFFFF', width=2)),
                 textinfo="label+percent",
                 hovertemplate="<b>%{label}</b><br>Weight: %{percent}<br>"
                               "Amount: $%{customdata:,.0f}<extra></extra>",
@@ -1046,13 +1311,13 @@ with tabs[3]:
             fig_d.add_annotation(
                 text=f"${st.session_state.investment/1000:.0f}K",
                 x=0.5, y=0.5, showarrow=False,
-                font=dict(size=22, color="#111")
+                font=dict(size=22, color="#111827", family="DM Sans")
             )
             fig_d.update_layout(
-                template="plotly_white", height=320,
+                template="plotly_white", height=340,
                 margin=dict(l=0, r=0, t=10, b=0),
-                paper_bgcolor="#ffffff",
-                font=dict(color="#111")
+                paper_bgcolor="#FFFFFF",
+                font=dict(color="#111827", family="DM Sans, sans-serif")
             )
             st.plotly_chart(fig_d, use_container_width=True)
 
@@ -1087,13 +1352,13 @@ with tabs[3]:
                     unsafe_allow_html=True)
         corr = opt["correlation_matrix"]
         fig_h = px.imshow(
-            corr, color_continuous_scale="RdBu_r",
+            corr, color_continuous_scale=[[0,"#EF4444"],[0.5,"#F7F9FC"],[1,"#2563EB"]],
             zmin=-1, zmax=1, text_auto=".2f",
             template="plotly_white"
         )
         fig_h.update_layout(
             height=320, margin=dict(l=0, r=0, t=10, b=0),
-            paper_bgcolor="#ffffff", font=dict(color="#111")
+            paper_bgcolor="#FFFFFF", font=dict(color="#111827", family="DM Sans, sans-serif")
         )
         st.plotly_chart(fig_h, use_container_width=True)
 
@@ -1102,8 +1367,12 @@ with tabs[3]:
 # TAB 4 — PERFORMANCE
 # ════════════════════════════════════════════════════════════════
 with tabs[4]:
-    st.markdown('<h2 style="color:#111">Portfolio Performance</h2>',
-                unsafe_allow_html=True)
+    st.markdown("""
+    <div style="margin-bottom:20px">
+        <h2 style="font-size:24px;font-weight:700;color:#111827;margin:0 0 6px 0">Portfolio Performance</h2>
+        <p style="color:#6B7280;margin:0;font-size:14px">Efficient frontier, historical backtest, and strategy comparison analytics.</p>
+    </div>
+    """, unsafe_allow_html=True)
 
     opt = st.session_state.opt_results
     pm  = st.session_state.price_matrix
@@ -1125,13 +1394,13 @@ with tabs[4]:
                     x=[v*100 for v in fd["volatilities"]],
                     y=[r*100 for r in fd["returns"]],
                     mode="lines", name="Efficient Frontier",
-                    line=dict(color="#1565C0", width=2)
+                    line=dict(color="#2563EB", width=2)
                 ))
             fig_ef.add_trace(go.Scatter(
                 x=[ms_p["volatility"]*100], y=[ms_p["expected_return"]*100],
                 mode="markers+text", text=["Max Sharpe"],
                 textposition="top right",
-                marker=dict(size=14, color="#e65100", symbol="star"),
+                marker=dict(size=14, color="#F59E0B", symbol="star"),
                 name="Max Sharpe"
             ))
             fig_ef.add_trace(go.Scatter(
@@ -1146,7 +1415,7 @@ with tabs[4]:
                 xaxis_title="Annual Volatility (%)",
                 yaxis_title="Annual Return (%)",
                 margin=dict(l=0, r=0, t=10, b=0),
-                paper_bgcolor="#ffffff", font=dict(color="#111"),
+                paper_bgcolor="#FFFFFF", font=dict(color="#111827", family="DM Sans, sans-serif"),
                 legend=dict(orientation="h", y=-0.25)
             )
             st.plotly_chart(fig_ef, use_container_width=True)
@@ -1159,20 +1428,20 @@ with tabs[4]:
             fig_bt.add_trace(go.Scatter(
                 x=bt["Date"].astype(str), y=bt["Portfolio"],
                 name="Optimised Portfolio",
-                line=dict(color="#1565C0", width=2),
-                fill="tozeroy", fillcolor="rgba(21,101,192,0.05)"
+                line=dict(color="#2563EB", width=2),
+                fill="tozeroy", fillcolor="rgba(37,99,235,0.07)"
             ))
             fig_bt.add_trace(go.Scatter(
                 x=bt["Date"].astype(str), y=bt["EqualWeight"],
                 name="Equal Weight",
-                line=dict(color="#e65100", width=1.5, dash="dash")
+                line=dict(color="#F59E0B", width=1.8, dash="dash")
             ))
             fig_bt.update_layout(
                 template="plotly_white", height=360,
                 yaxis_title="Value (normalised to 100)",
                 xaxis_title="Date",
                 margin=dict(l=0, r=0, t=10, b=0),
-                paper_bgcolor="#ffffff", font=dict(color="#111"),
+                paper_bgcolor="#FFFFFF", font=dict(color="#111827", family="DM Sans, sans-serif"),
                 legend=dict(orientation="h", y=-0.25)
             )
             st.plotly_chart(fig_bt, use_container_width=True)
@@ -1219,11 +1488,11 @@ with tabs[4]:
             pd.DataFrame(bar_rows),
             x="Ticker", y="Weight %", color="Strategy",
             barmode="group", template="plotly_white",
-            color_discrete_sequence=["#1565C0","#1a7a4a","#e65100"]
+            color_discrete_sequence=["#2563EB","#10B981","#F59E0B"]
         )
         fig_bar.update_layout(
             height=300, margin=dict(l=0,r=0,t=10,b=0),
-            paper_bgcolor="#ffffff", font=dict(color="#111")
+            paper_bgcolor="#FFFFFF", font=dict(color="#111827", family="DM Sans, sans-serif")
         )
         st.plotly_chart(fig_bar, use_container_width=True)
 
@@ -1242,12 +1511,18 @@ with tabs[4]:
 # TAB 5 — ABOUT
 # ════════════════════════════════════════════════════════════════
 with tabs[5]:
-    st.markdown('<h2 style="color:#111">About & Methodology</h2>',
-                unsafe_allow_html=True)
+    st.markdown("""
+    <div style="margin-bottom:24px">
+        <h2 style="font-size:24px;font-weight:700;color:#111827;margin:0 0 6px 0">About & Methodology</h2>
+        <p style="color:#6B7280;margin:0;font-size:14px">Technical details, model architecture, and team information.</p>
+    </div>
+    """, unsafe_allow_html=True)
+
     c1, c2 = st.columns(2)
     with c1:
+        st.markdown('<div class="about-card">', unsafe_allow_html=True)
         st.markdown("""
-### Data pipeline
+### Data Pipeline
 1. **yfinance** downloads live OHLCV (auto-adjusted for splits/dividends)
 2. **Feature engineering** adds 4 technical indicators:
    - RSI-14 (momentum)
@@ -1257,17 +1532,26 @@ with tabs[5]:
 3. **Strict time split** — scaler fitted on training data only
 4. **60-timestep sliding windows** × 9 features per sample
 
-### Time-based split
+### Time-based Split
 | Period | Dates |
 |--------|-------|
 | Training | Start → 2023-12-31 |
 | Testing  | 2024-01-01 → present |
 
 Training and test sets are **never shuffled**. No future data leakage.
+
+### Portfolio Optimisation
+- **Expected returns**: 60% LSTM/GRU + 40% historical mean
+- **Covariance**: Ledoit-Wolf shrinkage
+- **Strategies**: Max Sharpe · Min Volatility · Equal Weight
+- **Risk metrics**: VaR 95%, CVaR 95%, Max Drawdown
         """)
+        st.markdown('</div>', unsafe_allow_html=True)
+
     with c2:
+        st.markdown('<div class="about-card">', unsafe_allow_html=True)
         st.markdown("""
-### Models
+### Model Architecture
 | Parameter   | LSTM / GRU |
 |-------------|------------|
 | Layer 1     | 128 units, return_seq=True |
@@ -1280,17 +1564,19 @@ Training and test sets are **never shuffled**. No future data leakage.
 | EarlyStopping | patience=15 |
 | Forecast    | 30-day iterative |
 
-### Portfolio optimisation
-- **Expected returns**: 60% LSTM/GRU + 40% historical mean
-- **Covariance**: Ledoit-Wolf shrinkage
-- **Strategies**: Max Sharpe · Min Volatility · Equal Weight
-- **Risk metrics**: VaR 95%, CVaR 95%, Max Drawdown
-
-### Tech stack
+### Tech Stack
 `TensorFlow 2.x` · `PyPortfolioOpt` · `yfinance` · `Streamlit` · `Plotly`
-
-### Authors
-**Saisha Verma** (18101012024) · **Ritisha Sood** (17201012024)
-
-> *Educational purposes only. Not financial advice.*
         """)
+
+        st.markdown('<div style="margin-top:20px">', unsafe_allow_html=True)
+        st.markdown("**Authors**")
+        st.markdown("""
+        <div>
+            <span class="author-chip">Saisha Verma &nbsp;·&nbsp; 18101012024</span>
+            <span class="author-chip">Ritisha Sood &nbsp;·&nbsp; 17201012024</span>
+        </div>
+        <div class="disclaimer">
+            Educational purposes only. Not financial advice. Past performance does not guarantee future results.
+        </div>
+        """, unsafe_allow_html=True)
+        st.markdown('</div></div>', unsafe_allow_html=True)
