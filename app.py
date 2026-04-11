@@ -11,7 +11,7 @@ Architecture:
   - Step 5  : Portfolio optimisation + future forecast
 
 Bug fixes vs previous version:
-  - BUG FIX: add_vline crash — convert Timestamp to ISO string before passing
+  - BUG FIX: add_vline crash — replaced with add_shape + add_annotation (works all Plotly versions)
   - BUG FIX: Strict time-based split (no random shuffle)
   - BUG FIX: Scaler fitted only on training data
   - BUG FIX: Test metrics computed only on out-of-sample test period
@@ -112,7 +112,7 @@ st.set_page_config(
 # ── White background professional CSS ─────────────────────────
 st.markdown("""
 <style>
-/* ── Global white background ── */
+/* ── Global white background, black text ── */
 html, body, [data-testid="stApp"] {
     background-color: #ffffff !important;
     color: #111111 !important;
@@ -120,7 +120,77 @@ html, body, [data-testid="stApp"] {
 [data-testid="stHeader"] { background-color: #ffffff !important; }
 [data-testid="stSidebar"] { display: none; }
 
-/* ── Top nav bar ── */
+/* ── All standard text elements black on white ── */
+p, span, div, label, h1, h2, h3, h4, h5, h6, li, td, th, caption {
+    color: #111111 !important;
+}
+
+/* ── Streamlit native text widgets ── */
+[data-testid="stMarkdownContainer"] p,
+[data-testid="stMarkdownContainer"] li,
+[data-testid="stMarkdownContainer"] span,
+[data-testid="stMarkdownContainer"] strong,
+[data-testid="stMarkdownContainer"] em,
+[data-testid="stMarkdownContainer"] code,
+[data-testid="stMarkdownContainer"] h1,
+[data-testid="stMarkdownContainer"] h2,
+[data-testid="stMarkdownContainer"] h3,
+[data-testid="stMarkdownContainer"] h4 {
+    color: #111111 !important;
+}
+
+/* ── Metric widget ── */
+[data-testid="stMetricValue"],
+[data-testid="stMetricLabel"],
+[data-testid="stMetricDelta"] {
+    color: #111111 !important;
+}
+
+/* ── Dataframe / table text ── */
+[data-testid="stDataFrame"] td,
+[data-testid="stDataFrame"] th,
+.stDataFrame td, .stDataFrame th {
+    color: #111111 !important;
+}
+
+/* ── Caption / info / warning text ── */
+[data-testid="stCaptionContainer"],
+[data-testid="stCaption"],
+small { color: #555555 !important; }
+
+/* ── Radio buttons ── */
+[data-testid="stRadio"] label,
+[data-testid="stRadio"] span,
+[data-testid="stRadio"] div { color: #111111 !important; }
+
+/* ── Selectbox / multiselect text ── */
+[data-testid="stSelectbox"] label,
+[data-testid="stMultiSelect"] label,
+[data-testid="stSelectbox"] span,
+[data-testid="stMultiSelect"] span { color: #111111 !important; }
+
+/* ── Slider label + value ── */
+[data-testid="stSlider"] label,
+[data-testid="stSlider"] span,
+[data-testid="stSlider"] p { color: #111111 !important; }
+
+/* ── Number input ── */
+[data-testid="stNumberInput"] label,
+[data-testid="stNumberInput"] span { color: #111111 !important; }
+
+/* ── Expander header ── */
+[data-testid="stExpander"] summary,
+[data-testid="stExpander"] summary p,
+[data-testid="stExpander"] summary span { color: #111111 !important; }
+
+/* ── Info / success / warning / error boxes ── */
+[data-testid="stAlert"] p,
+[data-testid="stAlert"] span { color: #111111 !important; }
+
+/* ── Progress bar label ── */
+[data-testid="stProgress"] p { color: #111111 !important; }
+
+/* ── Top nav bar (dark bg → white text) ── */
 .nav-bar {
     display: flex;
     align-items: center;
@@ -136,16 +206,13 @@ html, body, [data-testid="stApp"] {
 .nav-logo {
     font-size: 20px;
     font-weight: 700;
-    color: #ffffff;
+    color: #ffffff !important;
     letter-spacing: .03em;
 }
-.nav-links {
-    display: flex;
-    gap: 6px;
-}
+.nav-links { display: flex; gap: 6px; }
 .nav-btn {
     background: transparent;
-    color: #cccccc;
+    color: #cccccc !important;
     border: none;
     padding: 6px 18px;
     font-size: 14px;
@@ -155,11 +222,11 @@ html, body, [data-testid="stApp"] {
 }
 .nav-btn:hover, .nav-btn.active {
     background: #333333;
-    color: #ffffff;
+    color: #ffffff !important;
 }
 .nav-login {
     background: #ffffff;
-    color: #111111;
+    color: #111111 !important;
     border: none;
     padding: 6px 18px;
     font-size: 13px;
@@ -168,7 +235,7 @@ html, body, [data-testid="stApp"] {
     cursor: pointer;
 }
 
-/* ── Streamlit tab override ── */
+/* ── Streamlit tab override (dark bg → white/grey text) ── */
 [data-testid="stTabs"] [role="tablist"] {
     background: #111111 !important;
     border-radius: 10px !important;
@@ -187,6 +254,10 @@ html, body, [data-testid="stApp"] {
     flex: 1 !important;
     min-width: 0 !important;
 }
+[data-testid="stTabs"] button[role="tab"] p,
+[data-testid="stTabs"] button[role="tab"] span {
+    color: inherit !important;
+}
 [data-testid="stTabs"] button[role="tab"][aria-selected="true"] {
     background: #333333 !important;
     color: #ffffff !important;
@@ -195,7 +266,7 @@ html, body, [data-testid="stApp"] {
     padding-top: 24px !important;
 }
 
-/* ── Black action buttons ── */
+/* ── Black action buttons (dark bg → white text) ── */
 div.stButton > button {
     background-color: #111111 !important;
     color: #ffffff !important;
@@ -208,14 +279,12 @@ div.stButton > button {
     letter-spacing: .02em !important;
     transition: background .15s !important;
 }
-div.stButton > button:hover {
-    background-color: #333333 !important;
-}
-div.stButton > button[kind="primary"] {
-    background-color: #111111 !important;
-}
+div.stButton > button:hover { background-color: #333333 !important; }
+div.stButton > button[kind="primary"] { background-color: #111111 !important; }
+div.stButton > button p,
+div.stButton > button span { color: #ffffff !important; }
 
-/* ── Metric cards ── */
+/* ── Metric cards (light bg → black text) ── */
 .metric-card {
     background: #f5f5f5;
     border: 1px solid #e0e0e0;
@@ -223,18 +292,18 @@ div.stButton > button[kind="primary"] {
     padding: 16px 20px;
     text-align: center;
 }
-.metric-card .mc-label { font-size: 11px; color: #666; text-transform: uppercase;
-                          letter-spacing: .06em; margin-bottom: 4px; }
-.metric-card .mc-value { font-size: 22px; font-weight: 700; color: #111; }
-.metric-card.good  .mc-value { color: #1a7a4a; }
-.metric-card.warn  .mc-value { color: #b34000; }
-.metric-card.bad   .mc-value { color: #c0392b; }
+.metric-card .mc-label { font-size: 11px; color: #666666 !important;
+    text-transform: uppercase; letter-spacing: .06em; margin-bottom: 4px; }
+.metric-card .mc-value { font-size: 22px; font-weight: 700; color: #111111 !important; }
+.metric-card.good .mc-value { color: #1a7a4a !important; }
+.metric-card.warn .mc-value { color: #b34000 !important; }
+.metric-card.bad  .mc-value { color: #c0392b !important; }
 
-/* ── Recommended badge ── */
+/* ── Recommended badge (green bg → white text) ── */
 .rec-badge {
     display: inline-block;
     background: #1a7a4a;
-    color: #fff;
+    color: #ffffff !important;
     font-size: 11px;
     font-weight: 700;
     letter-spacing: .06em;
@@ -247,7 +316,7 @@ div.stButton > button[kind="primary"] {
 .better-badge {
     display: inline-block;
     background: #b34000;
-    color: #fff;
+    color: #ffffff !important;
     font-size: 11px;
     border-radius: 4px;
     padding: 2px 8px;
@@ -255,29 +324,33 @@ div.stButton > button[kind="primary"] {
     vertical-align: middle;
 }
 
-/* ── Section header ── */
+/* ── Section header (white bg → black text) ── */
 .sec-h {
     font-size: 16px;
     font-weight: 700;
-    color: #111;
-    border-bottom: 2px solid #111;
+    color: #111111 !important;
+    border-bottom: 2px solid #111111;
     padding-bottom: 6px;
     margin: 24px 0 14px 0;
 }
 
-/* ── Right panel (home) ── */
+/* ── Right panel (light bg → black text) ── */
 .right-panel {
     background: #f9f9f9;
     border: 1px solid #e0e0e0;
     border-radius: 12px;
     padding: 24px;
+    color: #111111 !important;
 }
+.right-panel p, .right-panel span, .right-panel label,
+.right-panel h1, .right-panel h2, .right-panel h3,
+.right-panel h4, .right-panel div { color: #111111 !important; }
 
-/* ── Stock badge ── */
+/* ── Stock badge (dark bg → white text) ── */
 .sbadge {
     display: inline-block;
-    background: #111;
-    color: #fff;
+    background: #111111;
+    color: #ffffff !important;
     border-radius: 20px;
     padding: 3px 12px;
     font-size: 12px;
@@ -296,6 +369,20 @@ hr { border: none; border-top: 1px solid #e5e5e5; margin: 20px 0; }
     background: #ffffff !important;
     border: 1px solid #cccccc !important;
     border-radius: 6px !important;
+    color: #111111 !important;
+}
+
+/* ── Dropdown options text ── */
+[data-testid="stSelectbox"] option,
+[data-baseweb="select"] [data-testid="stText"],
+[data-baseweb="select"] span { color: #111111 !important; }
+
+/* ── Multiselect tags ── */
+[data-testid="stMultiSelect"] [data-baseweb="tag"] {
+    background-color: #111111 !important;
+}
+[data-testid="stMultiSelect"] [data-baseweb="tag"] span {
+    color: #ffffff !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -640,13 +727,23 @@ chosen models.
                     pm = build_price_matrix(df, list(forecast_results.keys()))
                     st.session_state.price_matrix = pm
                     try:
-                        st.session_state.opt_results = optimise(
+                        opt = optimise(
                             forecast_results, pm,
                             investment_amount=st.session_state.investment,
                             risk_free_rate=st.session_state.risk_free_rate
                         )
+                        st.session_state.opt_results = opt
                         bar.progress(1.0, text="Analysis complete!")
                         st.success("Analysis complete! See Forecast and Portfolio tabs.")
+                        if opt.get("rfr_was_adjusted"):
+                            eff = opt["effective_rfr"] * 100
+                            st.warning(
+                                f"\u26a0\ufe0f **Risk-free rate auto-adjusted to {eff:.2f}%** — "
+                                f"forecast returns were all below your set rate "
+                                f"({st.session_state.risk_free_rate*100:.2f}%). "
+                                f"Portfolio is still optimised. Consider lowering the "
+                                f"risk-free rate slider."
+                            )
                     except Exception as e:
                         st.error(f"Optimisation failed: {e}")
 
@@ -842,14 +939,27 @@ with tabs[2]:
                     line=dict(color="#27ae60", width=2.2)
                 ))
 
-                # BUG FIX: pass ISO string, NOT Timestamp, to add_vline
+                # FIX: add_vline crashes across Plotly versions when x is a
+                # date string (TypeError: sum([str])). Use add_shape +
+                # add_annotation instead — both accept plain ISO strings safely.
                 if forecast_dates:
-                    fig.add_vline(
-                        x=forecast_dates[0],   # ← string, not Timestamp
-                        line_dash="dash",
-                        line_color="rgba(0,0,0,0.25)",
-                        annotation_text="Forecast start",
-                        annotation_position="top right"
+                    fig.add_shape(
+                        type="line",
+                        x0=forecast_dates[0], x1=forecast_dates[0],
+                        y0=0, y1=1,
+                        xref="x", yref="paper",
+                        line=dict(dash="dash", color="rgba(0,0,0,0.30)", width=1.5)
+                    )
+                    fig.add_annotation(
+                        x=forecast_dates[0], y=1,
+                        xref="x", yref="paper",
+                        text="Forecast start",
+                        showarrow=False,
+                        xanchor="left",
+                        yanchor="bottom",
+                        font=dict(size=11, color="#111111"),
+                        bgcolor="rgba(255,255,255,0.7)",
+                        borderpad=3
                     )
 
                 fig.update_layout(
@@ -881,6 +991,13 @@ with tabs[3]:
     if opt is None:
         st.info("Run Analysis first.")
     else:
+        if opt.get("rfr_was_adjusted"):
+            eff = opt["effective_rfr"] * 100
+            st.warning(
+                f"\u26a0\ufe0f **Note:** Risk-free rate was auto-adjusted to **{eff:.2f}%** "
+                f"because the model's forecast returns were all below your configured rate. "
+                f"Sharpe ratios below are computed at the adjusted rate."
+            )
         strategy = st.radio(
             "Strategy",
             ["Max Sharpe", "Min Volatility", "Equal Weight"],
