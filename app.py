@@ -1572,8 +1572,8 @@ TensorFlow 2.x · PyPortfolioOpt · yfinance · Streamlit · Plotly
         st.markdown("**Authors**")
         st.markdown("""
         <div>
-            <span class="author-chip">Saisha Verma &nbsp;·&nbsp; 18101012024</span>
-            <span class="author-chip">Ritisha Sood &nbsp;·&nbsp; 17201012024</span>
+            <span class="author-chip">Saisha Verma &nbsp;·&nbsp; @Saisha0512 </span>
+            <span class="author-chip">Ritisha Sood &nbsp;·&nbsp; @RitishaSood </span>
         </div>
         <div class="disclaimer">
             Educational purposes only. Not financial advice. Past performance does not guarantee future results.
