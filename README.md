@@ -5,6 +5,32 @@
 > **Team:** Saisha Verma · Ritisha Sood
 
 ---
+## Table of Contents
+
+1. [Overview](#overview)
+2. [Meet Alex](#meet-alex)
+3. [Step 1 - Alex Opens the Dashboard](#step-1--alex-opens-the-dashboard)
+4. [Step 2 - Alex Trains the AI Models](#step-2--alex-trains-the-ai-models)
+5. [Step 3 - Alex Compares LSTM vs GRU](#step-3--alex-compares-lstm-vs-gru)
+6. [Step 4 - Alex Sees the Future (Kind Of)](#step-4--alex-sees-the-future-kind-of)
+7. [Step 5 - Alex Builds His Portfolio](#step-5--alex-builds-his-portfolio)
+8. [Step 6 - Alex Reviews the Track Record](#step-6--alex-reviews-the-track-record)
+9. [Step 7 - Alex goes through the About & Methodology Tab](#about--methodology)
+10. [Features](#features-implemented)
+11. [Architecture](#architecture)
+12. [Folder Structure](#folder-structure)
+13. [Tech Stack](#tech-stack)
+14. [Setup](#setup--python-3118-environment)
+15. [Usage](#usage)
+16. [Model Details](#model-details)
+17. [Portfolio Optimisation](#portfolio-optimisation)
+18. [Architecture Notes](#architecture-notes)
+19. [Limitations](#limitations)
+20. [Future Improvements](#future-improvements)
+21. [License](#license)
+22. [Authors](#authors)
+
+---
 
 ## Overview
 
