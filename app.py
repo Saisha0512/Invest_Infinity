@@ -1565,7 +1565,7 @@ Training and test sets are **never shuffled**. No future data leakage.
 | Forecast    | 30-day iterative |
 
 ### Tech Stack
-`TensorFlow 2.x` · `PyPortfolioOpt` · `yfinance` · `Streamlit` · `Plotly`
+TensorFlow 2.x · PyPortfolioOpt · yfinance · Streamlit · Plotly
         """)
 
         st.markdown('<div style="margin-top:20px">', unsafe_allow_html=True)
