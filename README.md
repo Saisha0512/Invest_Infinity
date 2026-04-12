@@ -22,10 +22,10 @@
 
 <!-- SCREENSHOT 1: Paste Image 1 (home page with control panel on right) here -->
 <img width="1600" height="761" alt="image" src="https://github.com/user-attachments/assets/e0dad959-98b2-4c05-9097-087ed0adf79d" />
-<img width="400" height="692" alt="image" src="https://github.com/user-attachments/assets/191cd9f8-e54d-4c66-979b-791d33165912" />
+<!-- <img width="400" height="692" alt="image" src="https://github.com/user-attachments/assets/191cd9f8-e54d-4c66-979b-791d33165912" />
 <img width="450" height="692" alt="image" src="https://github.com/user-attachments/assets/1648f57b-526d-4ccc-9391-8f5cb5a0ecb2" />
 <img width="450" height="692" alt="image" src="https://github.com/user-attachments/assets/4a2d84d7-0ce5-44b1-ac6b-d19174d0df40" />
-<img width="450" height="692" alt="image" src="https://github.com/user-attachments/assets/875324b0-3300-4ab5-b189-44d12ceca243" />
+<img width="450" height="692" alt="image" src="https://github.com/user-attachments/assets/875324b0-3300-4ab5-b189-44d12ceca243" /> -->
 
 
 > *Left-side shows workflow steps, right-side shows control panel with stock picker, data period selector, investment amount, risk-free rate slider and Fetch / Train / Run buttons.*
@@ -33,9 +33,9 @@
 ---
 
 ### Model Selection — LSTM vs GRU Comparison
+<img width="1600" height="641" alt="image" src="https://github.com/user-attachments/assets/24fbd87a-8654-48d6-8758-1242fcb33672" />
 
 <!-- SCREENSHOT 2: Paste Image 2 (model selection page) here -->
-> 📌 **[INSERT SCREENSHOT: `screenshots/02_model_selection.png`]**  
 > *Side-by-side RMSE / MSE / MAE / MAPE metrics displayed for LSTM and GRU per company. Green "Recommended" badge on the better model. Actual vs Predicted charts for each model.*
 
 ---
@@ -43,7 +43,8 @@
 ### Forecast Tab — Future Price Predictions
 
 <!-- SCREENSHOT 3: Paste Image 3 (forecast page) here -->
-> 📌 **[INSERT SCREENSHOT: `screenshots/03_forecast.png`]**  
+<img width="1847" height="691" alt="image" src="https://github.com/user-attachments/assets/89a945fe-6fd4-4f36-a884-a4cf22514286" />
+ 
 > *30-day shows iterative price forecast per stock with ±2% confidence band, last known price and expected % change.*
 
 ---
@@ -51,25 +52,31 @@
 ### Portfolio Tab — Optimal Allocation (Max Sharpe)
 
 <!-- SCREENSHOT 4: Paste Image 4 (portfolio — max sharpe) here -->
-> 📌 **[INSERT SCREENSHOT: `screenshots/04_portfolio_maxsharpe.png`]**  
+<img width="1809" height="897" alt="image" src="https://github.com/user-attachments/assets/ee97861e-2b67-4e4d-9089-30eaa7ef3833" />
+ 
 > *Donut allocation shows chart, shares-to-buy table, Sharpe ratio, annual return/volatility, VaR 95%, CVaR 95%, Max Drawdown.*
 
 ### Portfolio Tab — Min Volatility Strategy
 
 <!-- SCREENSHOT 5: Paste Image 5 (portfolio — min volatility) here -->
-> 📌 **[INSERT SCREENSHOT: `screenshots/05_portfolio_minvol.png`]**
+<img width="1845" height="887" alt="image" src="https://github.com/user-attachments/assets/e09989d1-7d7d-4140-bf15-7bd972e5333d" />
+
 
 ### Portfolio Tab — Equal Weight Strategy
 
-<!-- SCREENSHOT 6: Paste Image 6 (portfolio — equal weight) here -->
-> 📌 **[INSERT SCREENSHOT: `screenshots/06_portfolio_equalweight.png`]**
+<img width="1866" height="887" alt="image" src="https://github.com/user-attachments/assets/5b31a216-df9d-44db-8e96-39bb84c6478f" />
+
+<img width="1600" height="677" alt="image" src="https://github.com/user-attachments/assets/7c260c26-25b6-4ef7-8136-a19d80e62147" />
+
 
 ---
 
 ### Performance Tab — Efficient Frontier & Backtest
 
 <!-- SCREENSHOT 7: Paste Image 7 (performance page) here -->
-> 📌 **[INSERT SCREENSHOT: `screenshots/07_performance.png`]**  
+<img width="1823" height="834" alt="image" src="https://github.com/user-attachments/assets/a4c973d1-4777-41a8-b2e2-3db2239bc499" />
+<img width="1834" height="399" alt="image" src="https://github.com/user-attachments/assets/9e8eb0cd-56cf-4ae2-a504-768d98b339e2" />
+
 > *It shows efficient frontier curve with Max Sharpe ★ and Min Vol ◆ markers, historical backtest normalised to 100 (portfolio vs equal weight), strategy comparison table, weight breakdown bar chart.*
 
 ---
@@ -77,7 +84,8 @@
 ### About Tab — Methodology
 
 <!-- SCREENSHOT 8: Paste Image 8 (about page) here -->
-> 📌 **[INSERT SCREENSHOT: `screenshots/08_about.png`]**  
+<img width="1825" height="845" alt="image" src="https://github.com/user-attachments/assets/e234e16e-5537-41e7-a5be-18d6dc3a5dd4" />
+
 > *It shows Data pipeline, time-based split table, model architecture table, tech stack badges, authors.*
 
 ---
